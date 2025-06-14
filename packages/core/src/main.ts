@@ -2391,15 +2391,16 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
   }
 
   private sortStreams(streams: ParsedStream[], type: string): ParsedStream[] {
-    let sortCriteria = this.userData.sortCriteria.global;
+    let primarySortCriteria = this.userData.sortCriteria.global;
     let cachedSortCriteria = this.userData.sortCriteria.cached;
     let uncachedSortCriteria = this.userData.sortCriteria.uncached;
 
     const start = Date.now();
 
-    if (type === 'movie' && this.userData.sortCriteria?.movies?.length) {
-      logger.info('Using movie sort criteria');
-      sortCriteria = this.userData.sortCriteria?.movies;
+    if (type === 'movie') {
+      if (this.userData.sortCriteria?.movies?.length) {
+        primarySortCriteria = this.userData.sortCriteria?.movies;
+      }
       if (this.userData.sortCriteria?.cachedMovies?.length) {
         cachedSortCriteria = this.userData.sortCriteria?.cachedMovies;
       }
@@ -2408,9 +2409,10 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
       }
     }
 
-    if (type === 'series' && this.userData.sortCriteria?.series?.length) {
-      logger.info('Using series sort criteria');
-      sortCriteria = this.userData.sortCriteria?.series;
+    if (type === 'series') {
+      if (this.userData.sortCriteria?.series?.length) {
+        primarySortCriteria = this.userData.sortCriteria?.series;
+      }
       if (this.userData.sortCriteria?.cachedSeries?.length) {
         cachedSortCriteria = this.userData.sortCriteria?.cachedSeries;
       }
@@ -2418,13 +2420,26 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
         uncachedSortCriteria = this.userData.sortCriteria?.uncachedSeries;
       }
     }
+
+    if (type === 'anime') {
+      if (this.userData.sortCriteria?.anime?.length) {
+        primarySortCriteria = this.userData.sortCriteria?.anime;
+      }
+      if (this.userData.sortCriteria?.cachedAnime?.length) {
+        cachedSortCriteria = this.userData.sortCriteria?.cachedAnime;
+      }
+      if (this.userData.sortCriteria?.uncachedAnime?.length) {
+        uncachedSortCriteria = this.userData.sortCriteria?.uncachedAnime;
+      }
+    }
+
     let sortedStreams = [];
 
     if (
       cachedSortCriteria?.length &&
       uncachedSortCriteria?.length &&
-      sortCriteria.length > 0 &&
-      sortCriteria[0].key === 'cached'
+      primarySortCriteria.length > 0 &&
+      primarySortCriteria[0].key === 'cached'
     ) {
       logger.info(
         'Splitting streams into cached and uncached and using separate sort criteria'
@@ -2457,16 +2472,18 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
         return 0;
       });
 
-      if (sortCriteria[0].direction === 'desc') {
+      if (primarySortCriteria[0].direction === 'desc') {
         sortedStreams = [...cachedSorted, ...uncachedSorted];
       } else {
         sortedStreams = [...uncachedSorted, ...cachedSorted];
       }
     } else {
-      logger.debug(`using sort criteria: ${JSON.stringify(sortCriteria)}`);
+      logger.debug(
+        `using sort criteria: ${JSON.stringify(primarySortCriteria)}`
+      );
       sortedStreams = streams.slice().sort((a, b) => {
-        const aKey = this.dynamicSortKey(a, sortCriteria, type);
-        const bKey = this.dynamicSortKey(b, sortCriteria, type);
+        const aKey = this.dynamicSortKey(a, primarySortCriteria, type);
+        const bKey = this.dynamicSortKey(b, primarySortCriteria, type);
 
         for (let i = 0; i < aKey.length; i++) {
           if (aKey[i] < bKey[i]) return -1;

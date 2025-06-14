@@ -314,6 +314,7 @@ export const UserDataSchema = z.object({
     // results must be from either a movie or series search, so we can safely apply different sort criteria.
     movies: z.array(SortCriterion).optional(),
     series: z.array(SortCriterion).optional(),
+    anime: z.array(SortCriterion).optional(),
     // cached and uncached results are a sort criteria themselves, so this can only be applied when cache is high enough in the global
     // sort criteria, and we would have to split the results into two (cached and uncached) lists, and then apply both sort criteria below
     // and then merge the results.
@@ -323,6 +324,8 @@ export const UserDataSchema = z.object({
     uncachedMovies: z.array(SortCriterion).optional(),
     cachedSeries: z.array(SortCriterion).optional(),
     uncachedSeries: z.array(SortCriterion).optional(),
+    cachedAnime: z.array(SortCriterion).optional(),
+    uncachedAnime: z.array(SortCriterion).optional(),
   }),
   rpdbApiKey: z.string().optional(),
   formatter: Formatter,

@@ -1437,11 +1437,6 @@ function SortableCatalogItem({
 
             {/* Desktop Controls - only visible on medium screens and up */}
             <div className="hidden md:flex items-center justify-end gap-2 absolute top-4 right-4">
-              <Switch
-                value={catalog.enabled ?? true}
-                onValueChange={onToggleEnabled}
-                moreHelp="Enable or disable this catalog from being used"
-              />
               <div className="flex items-center gap-1">
                 <IconButton
                   rounded
@@ -1458,6 +1453,11 @@ function SortableCatalogItem({
                   title="Move to bottom"
                 />
               </div>
+              <Switch
+                value={catalog.enabled ?? true}
+                onValueChange={onToggleEnabled}
+                moreHelp="Enable or disable this catalog from being used"
+              />
             </div>
           </div>
 

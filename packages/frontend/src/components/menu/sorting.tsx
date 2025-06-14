@@ -28,6 +28,12 @@ import {
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { CSS } from '@dnd-kit/utilities';
 import { ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
+import {
+  Accordion,
+  AccordionTrigger,
+  AccordionContent,
+  AccordionItem,
+} from '../ui/accordion';
 
 export function SortingMenu() {
   return (
@@ -212,9 +218,72 @@ function Content() {
         </div>
       </div>
       <div className="space-y-4">
+        <Accordion
+          type="single"
+          collapsible
+          className="border rounded-[--radius-md]"
+          triggerClass="dark:bg-[--paper]"
+          contentClass="!pt-2 dark:bg-[--paper]"
+        >
+          <AccordionItem value="how-sorting-works">
+            <AccordionTrigger className="bg-gray-900 rounded-[--radius-md]">
+              How Sorting Works
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-4">
+                <p>
+                  The sorting system uses a hierarchical approach to determine
+                  how content is sorted:
+                </p>
+                <ol className="list-decimal list-inside space-y-2">
+                  <li>
+                    <span className="font-medium">Primary Sorts:</span> Define
+                    the main sorting order for different content types:
+                    <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                      <li>
+                        Global: Used as a fallback when no specific type sort is
+                        defined (You most likely just want to define this and
+                        ignore everything else.)
+                      </li>
+                      <li>Movies: Specific sorting for movies</li>
+                      <li>Series: Specific sorting for TV series</li>
+                      <li>Anime: Specific sorting for anime content</li>
+                    </ul>
+                  </li>
+                  <li>
+                    <span className="font-medium">
+                      Cached/Uncached Sorting:
+                    </span>{' '}
+                    If your primary sort has "cached" at the top:
+                    <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                      <li>Content is split into cached and uncached groups</li>
+                      <li>
+                        Each group is sorted separately using its specific sort
+                        criteria
+                      </li>
+                      <li>
+                        Groups are then combined based on the cached sort
+                        direction
+                      </li>
+                      <li>
+                        Type-specific cached/uncached sorts (e.g., "Cached
+                        Movies") take priority over global cached/uncached sorts
+                      </li>
+                    </ul>
+                  </li>
+                </ol>
+                <p className="text-sm text-[--muted]">
+                  Note: The system will use the most specific sort criteria
+                  available for the content type and cache status.
+                </p>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
         <SettingsCard
           title="Type"
-          description="Here, you can define different sort criteria for different types of content. Most people will only need to define the global sort criteria, and nothing else. However, if you wanted different sorting for cached and uncached content, you can do that here. You have to define the 'main' criteria to have cached at the top, and then separately define the cached and uncached criteria. If you also want to define different sorting for movies and series, you would do the same."
+          description="Choose the type of sort criteria you want to currently edit."
         >
           <Select
             label="Sort Order Type"
@@ -222,12 +291,15 @@ function Content() {
               { label: 'Global', value: 'global' },
               { label: 'Series', value: 'series' },
               { label: 'Movies', value: 'movies' },
+              { label: 'Anime', value: 'anime' },
               { label: 'Cached', value: 'cached' },
               { label: 'Uncached', value: 'uncached' },
               { label: 'Cached Movies', value: 'cachedMovies' },
               { label: 'Uncached Movies', value: 'uncachedMovies' },
               { label: 'Cached Series', value: 'cachedSeries' },
               { label: 'Uncached Series', value: 'uncachedSeries' },
+              { label: 'Cached Anime', value: 'cachedAnime' },
+              { label: 'Uncached Anime', value: 'uncachedAnime' },
             ]}
             value={currentSortType}
             onValueChange={setCurrentSortType}
