@@ -1,0 +1,30 @@
+name: Update and Deploy
+
+on:
+  schedule:
+    - cron: "5 9,15,21 * * *"  # Esegui alle 09:05, 15:05, 21:05
+  workflow_dispatch:        # Permette di avviare manualmente il workflow
+
+jobs:
+  update_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout del repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Configura Git
+      - name: Set up Git
+        run: |
+          git config --global user.name "tuo_nome"
+          git config --global user.email "tuo_email@example.com"
+
+      # Esegui lo script di aggiornamento
+      - name: Run update script
+        run: bash ./update_and_deploy.sh
+
+      # Avvia il deploy su Render utilizzando tutte le variabili segrete
+      - name: Trigger Render Deploy for first URL
+        run: |
+          curl -X POST ${{ secrets.RENDER_DEPLOY_URL }}
