@@ -53,11 +53,9 @@ jobs:
             if [[ "$(git rev-parse origin/main)" = "$(git rev-parse "${INPUT_REF}")" ]]; then
               TAGS="${TAGS} latest"
             fi
-            CHANNEL="stable"
             ;;
           [0-9]*.[0-9]*.[0-9]*-nightly)
             TAGS="${INPUT_REF} nightly"
-            CHANNEL="nightly"
             ;;
           *)
             echo "Invalid Input Ref: ${INPUT_REF}"
@@ -78,18 +76,7 @@ jobs:
             echo EOF
           } >> "${GITHUB_ENV}"
 
-          echo "CHANNEL=${CHANNEL}" >> "${GITHUB_ENV}"
-
           cat "${GITHUB_ENV}"
-
-      - name: Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Generate metadata
-        run: |
-          node scripts/generateMetadata.js --channel=${{env.CHANNEL}}
 
       - name: Build & Push
         uses: docker/build-push-action@v6
