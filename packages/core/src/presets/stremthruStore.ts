@@ -3,8 +3,9 @@ import { baseOptions, Preset } from './preset';
 import { Env } from '../utils';
 import { constants, ServiceId } from '../utils';
 import { StreamParser } from '../parser';
+import { StremThruPreset, StremThruStreamParser } from './stremthru';
 
-class StremthruStoreStreamParser extends StreamParser {
+class StremthruStoreStreamParser extends StremThruStreamParser {
   protected override applyUrlModifications(
     url: string | undefined
   ): string | undefined {
@@ -32,51 +33,14 @@ class StremthruStoreStreamParser extends StreamParser {
     }
     return url;
   }
-  // ensure release groups aren't misidentified as indexers
-  protected override getIndexer(
-    stream: Stream,
-    currentParsedStream: ParsedStream
-  ): string | undefined {
-    return undefined;
-  }
-
-  protected override getFolderSize(
-    stream: Stream,
-    currentParsedStream: ParsedStream
-  ): number | undefined {
-    let folderSize = this.calculateBytesFromSizeString(
-      stream.description ?? '',
-      /📦\s*(\d+(\.\d+)?)\s?(KB|MB|GB|TB)/i
-    );
-    if (folderSize && currentParsedStream.size) {
-      if (
-        Math.abs(folderSize - currentParsedStream.size) <=
-        currentParsedStream.size * 0.05
-      ) {
-        return undefined;
-      }
-    }
-    return folderSize;
-  }
 }
 
-export class StremthruStorePreset extends Preset {
+export class StremthruStorePreset extends StremThruPreset {
   static override getParser(): typeof StreamParser {
     return StremthruStoreStreamParser;
   }
 
   static override get METADATA() {
-    const supportedServices: ServiceId[] = [
-      constants.REALDEBRID_SERVICE,
-      constants.PREMIUMIZE_SERVICE,
-      constants.ALLDEBRID_SERVICE,
-      constants.TORBOX_SERVICE,
-      constants.EASYDEBRID_SERVICE,
-      constants.DEBRIDLINK_SERVICE,
-      constants.OFFCLOUD_SERVICE,
-      constants.PIKPAK_SERVICE,
-    ];
-
     const supportedResources = [
       constants.STREAM_RESOURCE,
       constants.CATALOG_RESOURCE,
@@ -96,7 +60,7 @@ export class StremthruStorePreset extends Preset {
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
         required: false,
-        options: supportedServices.map((service) => ({
+        options: StremThruPreset.supportedServices.map((service) => ({
           value: service,
           label: constants.SERVICE_DETAILS[service].name,
         })),
@@ -115,14 +79,7 @@ export class StremthruStorePreset extends Preset {
         name: '',
         description: '',
         type: 'socials',
-        socials: [
-          {
-            id: 'github',
-            url: 'https://github.com/MunifTanjim/stremthru',
-          },
-          { id: 'buymeacoffee', url: 'https://buymeacoffee.com/muniftanjim' },
-          { id: 'patreon', url: 'https://patreon.com/MunifTanjim' },
-        ],
+        socials: StremThruPreset.socialLinks,
       },
     ];
 
@@ -134,7 +91,7 @@ export class StremthruStorePreset extends Preset {
       TIMEOUT: Env.DEFAULT_STREMTHRU_STORE_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT:
         Env.DEFAULT_STREMTHRU_STORE_USER_AGENT || Env.DEFAULT_USER_AGENT,
-      SUPPORTED_SERVICES: supportedServices,
+      SUPPORTED_SERVICES: StremThruPreset.supportedServices,
       DESCRIPTION: 'Access your debrid library through catalogs and streams.',
       OPTIONS: options,
       SUPPORTED_STREAM_TYPES: [constants.DEBRID_STREAM_TYPE],
@@ -212,12 +169,7 @@ export class StremthruStorePreset extends Preset {
     }
     const configString = this.base64EncodeJSON({
       store_name: serviceId,
-      store_token: this.getServiceCredential(serviceId, userData, {
-        [constants.OFFCLOUD_SERVICE]: (credentials: any) =>
-          `${credentials.email}:${credentials.password}`,
-        [constants.PIKPAK_SERVICE]: (credentials: any) =>
-          `${credentials.email}:${credentials.password}`,
-      }),
+      store_token: this.getServiceCredential(serviceId, userData),
       hide_catalog: false,
       hide_stream: false,
       webdl: options.webDl ?? false,

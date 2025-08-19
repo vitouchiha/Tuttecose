@@ -8,8 +8,21 @@ export class StreamingCatalogsPreset extends Preset {
   // BluTV, Zee5, Hayu, Clarovideo, Globoplay, Hotstar, Cruncyroll, Magellan TV, Curiosity Stream,
   // Hulu, Paramount Plus, Peacock Premium, Disney+, Netflix Kids, Netflix
   private static catalogs = [
+    // Major Global Streaming Services
     {
-      label: 'Amazon Prime',
+      label: 'Netflix',
+      value: 'nfx',
+    },
+    {
+      label: 'HBO Max',
+      value: 'hbm',
+    },
+    {
+      label: 'Disney+',
+      value: 'dnp',
+    },
+    {
+      label: 'Prime Video',
       value: 'amp',
     },
     {
@@ -17,33 +30,35 @@ export class StreamingCatalogsPreset extends Preset {
       value: 'atp',
     },
     {
-      label: 'HBO Max',
-      value: 'hbm',
+      label: 'Paramount+',
+      value: 'pmp',
     },
     {
-      label: 'Sky Showtime',
-      value: 'sst',
+      label: 'Peacock Premium',
+      value: 'pcp',
     },
     {
-      label: 'Videoland',
-      value: 'vil',
+      label: 'Hulu',
+      value: 'hlu',
     },
     {
-      label: 'Canal+',
-      value: 'cpd',
+      label: 'Netflix Kids',
+      value: 'nfk',
+    },
+    // Educational & Special Interest
+    {
+      label: 'Curiosity Stream',
+      value: 'cts',
     },
     {
-      label: 'NLZIET',
-      value: 'nlz',
+      label: 'MagellanTV',
+      value: 'mgl',
     },
     {
-      label: 'BluTV',
-      value: 'blv',
+      label: 'Crunchyroll',
+      value: 'cru',
     },
-    {
-      label: 'Zee5',
-      value: 'zee',
-    },
+    // Regional & International Services
     {
       label: 'Hayu',
       value: 'hay',
@@ -57,48 +72,52 @@ export class StreamingCatalogsPreset extends Preset {
       value: 'gop',
     },
     {
-      label: 'Hotstar',
-      value: 'hst',
+      label: 'JioHotstar',
+      value: 'jhs',
     },
     {
-      label: 'Crunchyroll',
-      value: 'cru',
+      label: 'Zee5',
+      value: 'zee',
     },
     {
-      label: 'Magellan TV',
-      value: 'mgl',
+      label: 'NLZIET',
+      value: 'nlz',
     },
     {
-      label: 'Curiosity Stream',
-      value: 'cts',
+      label: 'Videoland',
+      value: 'vil',
     },
     {
-      label: 'Hulu',
-      value: 'hlu',
+      label: 'SkyShowtime',
+      value: 'sst',
     },
     {
-      label: 'Paramount Plus',
-      value: 'pmp',
+      label: 'Canal+',
+      value: 'cpd',
     },
     {
-      label: 'Peacock Premium',
-      value: 'pcp',
-    },
-    {
-      label: 'Disney+',
-      value: 'dnp',
-    },
-    {
-      label: 'Netflix Kids',
-      value: 'nfk',
-    },
-    {
-      label: 'Netflix',
-      value: 'nfx',
+      label: 'Starz',
+      value: 'stz',
     },
     {
       label: 'Discovery+',
       value: 'dpe',
+    },
+    {
+      label: 'Mubi',
+      value: 'mbi',
+    },
+    {
+      label: 'Rakuten Viki',
+      value: 'vik',
+    },
+    {
+      label: 'Sky Go',
+      value: 'sgo',
+    },
+    {
+      label: 'Sony Liv',
+      value: 'sonyliv',
     },
   ];
   static override get METADATA() {

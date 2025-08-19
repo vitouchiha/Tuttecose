@@ -27,6 +27,7 @@ import {
   ConfirmationDialog,
   useConfirmationDialog,
 } from '../shared/confirmation-dialog';
+import { UserData } from '@aiostreams/core';
 
 export function SaveInstallMenu() {
   return (
@@ -183,56 +184,52 @@ function Content() {
 
   const handleExport = () => {
     try {
-      const dataStr = JSON.stringify(
-        {
-          ...userData,
-          ip: filterCredentialsInExport ? undefined : userData.ip,
-          uuid: filterCredentialsInExport ? undefined : userData.uuid,
-          tmdbAccessToken: filterCredentialsInExport
+      const filteredUserData: UserData = {
+        ...userData,
+        ip: filterCredentialsInExport ? undefined : userData.ip,
+        uuid: filterCredentialsInExport ? undefined : userData.uuid,
+        addonPassword: filterCredentialsInExport
+          ? undefined
+          : userData.addonPassword,
+        tmdbAccessToken: filterCredentialsInExport
+          ? undefined
+          : userData.tmdbAccessToken,
+        tmdbApiKey: filterCredentialsInExport ? undefined : userData.tmdbApiKey,
+        rpdbApiKey: filterCredentialsInExport ? undefined : userData.rpdbApiKey,
+        services: userData?.services?.map((service) => ({
+          ...service,
+          credentials: filterCredentialsInExport ? {} : service.credentials,
+        })),
+        proxy: {
+          ...userData?.proxy,
+          credentials: filterCredentialsInExport
             ? undefined
-            : userData.tmdbAccessToken,
-          rpdbApiKey: filterCredentialsInExport
+            : userData?.proxy?.credentials,
+          url: filterCredentialsInExport ? undefined : userData?.proxy?.url,
+          publicUrl: filterCredentialsInExport
             ? undefined
-            : userData.rpdbApiKey,
-          addonPassword: filterCredentialsInExport
-            ? undefined
-            : userData.addonPassword,
-          services: userData?.services?.map((service) => ({
-            ...service,
-            credentials: filterCredentialsInExport ? {} : service.credentials,
-          })),
-          proxy: {
-            ...userData?.proxy,
-            credentials: filterCredentialsInExport
-              ? undefined
-              : userData?.proxy?.credentials,
-            url: filterCredentialsInExport ? undefined : userData?.proxy?.url,
-            publicUrl: filterCredentialsInExport
-              ? undefined
-              : userData?.proxy?.publicUrl,
-          },
-          presets: userData?.presets?.map((preset) => {
-            const presetMeta = status?.settings.presets.find(
-              (p) => p.ID === preset.type
-            );
-            return {
-              ...preset,
-              options: filterCredentialsInExport
-                ? Object.fromEntries(
-                    Object.entries(preset.options || {}).filter(([key]) => {
-                      const optionMeta = presetMeta?.OPTIONS?.find(
-                        (opt) => opt.id === key
-                      );
-                      return optionMeta?.type !== 'password';
-                    })
-                  )
-                : preset.options,
-            };
-          }),
+            : userData?.proxy?.publicUrl,
         },
-        null,
-        2
-      );
+        presets: userData?.presets?.map((preset) => {
+          const presetMeta = status?.settings.presets.find(
+            (p) => p.ID === preset.type
+          );
+          return {
+            ...preset,
+            options: filterCredentialsInExport
+              ? Object.fromEntries(
+                  Object.entries(preset.options || {}).filter(([key]) => {
+                    const optionMeta = presetMeta?.OPTIONS?.find(
+                      (opt) => opt.id === key
+                    );
+                    return optionMeta?.type !== 'password';
+                  })
+                )
+              : preset.options,
+          };
+        }),
+      };
+      const dataStr = JSON.stringify(filteredUserData, null, 2);
       const blob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

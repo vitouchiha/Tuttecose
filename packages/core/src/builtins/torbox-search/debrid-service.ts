@@ -99,30 +99,33 @@ export class DebridService {
             (avail) => avail.hash === torrent.hash
           );
 
+          let file;
+
           if (!item) {
             logger.debug(
-              `[${this.serviceConfig.id}] Hash ${torrent.hash} not found in instant availability response`
+              `[${this.serviceConfig.id}] Hash ${torrent.hash} (${torrent.title}) not found in instant availability response`
             );
-            continue;
-          }
 
-          const file =
-            item.files && item.files.length > 0
-              ? findMatchingFileInTorrent(
-                  item.files.map((file) => ({
-                    ...file,
-                    parsed: FileParser.parse(file.name),
-                    isVideo: isVideoFile(file.name),
-                  })),
-                  torrent.fileIdx,
-                  undefined,
-                  titleMetadata?.titles,
-                  season,
-                  episode,
-                  absoluteEpisode,
-                  false
-                )
-              : { name: torrent.title, size: torrent.size, index: -1 }; // Fallback for torrents with no file list
+            file = { name: torrent.title, size: torrent.size, index: -1 };
+          } else {
+            file =
+              item.files && item.files.length > 0
+                ? findMatchingFileInTorrent(
+                    item.files.map((file) => ({
+                      ...file,
+                      parsed: FileParser.parse(file.name),
+                      isVideo: isVideoFile(file.name),
+                    })),
+                    torrent.fileIdx,
+                    undefined,
+                    titleMetadata?.titles,
+                    season,
+                    episode,
+                    absoluteEpisode,
+                    false
+                  )
+                : { name: torrent.title, size: torrent.size, index: -1 }; // Fallback for torrents with no file list
+          }
 
           if (file) {
             const result: DebridFile = {
@@ -132,7 +135,7 @@ export class DebridService {
               index: file.index !== -1 ? file.index : undefined,
               service: {
                 id: this.serviceConfig.id,
-                cached: item.status === 'cached',
+                cached: item?.status === 'cached',
               },
             };
             newResults.push(result);

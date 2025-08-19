@@ -47,7 +47,8 @@ export class StremioTransformer {
     stream: ParsedStream,
     formatter: {
       format: (stream: ParsedStream) => { name: string; description: string };
-    }
+    },
+    index: number
   ): Promise<AIOStream> {
     const { name, description } = stream.addon.streamPassthrough
       ? {
@@ -73,7 +74,11 @@ export class StremioTransformer {
         : undefined,
       stream.parsedFile?.releaseGroup,
     ].filter(Boolean);
-    const bingeGroup = `${identifyingAttributes.join('|')}`;
+    // const bingeGroup = `${identifyingAttributes.join('|')}`;
+    const bingeGroup =
+      this.userData.autoPlayMethod === 'matchingFile'
+        ? `${identifyingAttributes.join('|')}`
+        : index.toString();
     return {
       name,
       description,
@@ -161,8 +166,8 @@ export class StremioTransformer {
     );
 
     transformedStreams = await Promise.all(
-      streams.map((stream: ParsedStream) =>
-        this.convertParsedStreamToStream(stream, formatter)
+      streams.map((stream: ParsedStream, index: number) =>
+        this.convertParsedStreamToStream(stream, formatter, index)
       )
     );
 
@@ -291,8 +296,8 @@ export class StremioTransformer {
       for (const video of meta.videos) {
         if (video.streams && video.streams.length > 0) {
           const transformedStreams = await Promise.all(
-            video.streams.map((stream) =>
-              this.convertParsedStreamToStream(stream, formatter!)
+            video.streams.map((stream, index) =>
+              this.convertParsedStreamToStream(stream, formatter!, index)
             )
           );
           video.streams = transformedStreams as unknown as ParsedStream[];

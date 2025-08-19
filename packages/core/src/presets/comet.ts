@@ -3,8 +3,18 @@ import { baseOptions, Preset } from './preset';
 import { Env } from '../utils';
 import { constants, ServiceId } from '../utils';
 import { StreamParser } from '../parser';
+import { StremThruPreset } from './stremthru';
 
 class CometStreamParser extends StreamParser {
+  get errorRegexes(): { pattern: RegExp; message: string }[] | undefined {
+    return [
+      ...(super.errorRegexes || []),
+      {
+        pattern: /Scraping in progress by another instance\./i,
+        message: 'Scraping in progress by another instance',
+      },
+    ];
+  }
   override applyUrlModifications(url: string | undefined): string | undefined {
     if (!url) {
       return url;
@@ -32,7 +42,7 @@ class CometStreamParser extends StreamParser {
   }
 }
 
-export class CometPreset extends Preset {
+export class CometPreset extends StremThruPreset {
   static override getParser(): typeof StreamParser {
     return CometStreamParser;
   }
@@ -190,12 +200,7 @@ export class CometPreset extends Preset {
       resultFormat: ['all'],
       debridService: serviceId || 'torrent',
       debridApiKey: serviceId
-        ? this.getServiceCredential(serviceId, userData, {
-            [constants.OFFCLOUD_SERVICE]: (credentials: any) =>
-              `${credentials.email}:${credentials.password}`,
-            [constants.PIKPAK_SERVICE]: (credentials: any) =>
-              `${credentials.email}:${credentials.password}`,
-          })
+        ? this.getServiceCredential(serviceId, userData)
         : '',
       debridStreamProxyPassword: '',
       languages: { required: [], exclude: [], preferred: [] },

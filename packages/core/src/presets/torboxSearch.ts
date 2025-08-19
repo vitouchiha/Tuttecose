@@ -1,8 +1,9 @@
 import { Addon, Option, UserData, Resource, Stream, ParsedStream } from '../db';
-import { Preset, baseOptions } from './preset';
+import { baseOptions } from './preset';
 import { Env, SERVICE_DETAILS } from '../utils';
 import { constants, ServiceId } from '../utils';
 import { StreamParser } from '../parser';
+import { StremThruPreset } from './stremthru';
 
 export class TorboxSearchParser extends StreamParser {
   override getFolder(stream: Stream): string | undefined {
@@ -44,21 +45,12 @@ export class TorboxSearchParser extends StreamParser {
   }
 }
 
-export class TorBoxSearchPreset extends Preset {
+export class TorBoxSearchPreset extends StremThruPreset {
   static override getParser(): typeof StreamParser {
     return TorboxSearchParser;
   }
 
   static override get METADATA() {
-    const supportedServices: ServiceId[] = [
-      constants.REALDEBRID_SERVICE,
-      constants.PREMIUMIZE_SERVICE,
-      constants.ALLDEBRID_SERVICE,
-      constants.TORBOX_SERVICE,
-      constants.EASYDEBRID_SERVICE,
-      constants.DEBRIDLINK_SERVICE,
-      constants.OFFCLOUD_SERVICE,
-    ];
     const supportedResources = [constants.STREAM_RESOURCE];
 
     const options: Option[] = [
@@ -99,7 +91,7 @@ export class TorBoxSearchPreset extends Preset {
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
         required: false,
-        options: supportedServices.map((service) => ({
+        options: StremThruPreset.supportedServices.map((service) => ({
           value: service,
           label: constants.SERVICE_DETAILS[service].name,
         })),
@@ -143,7 +135,7 @@ export class TorBoxSearchPreset extends Preset {
       TIMEOUT: Env.BUILTIN_TORBOX_SEARCH_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT:
         Env.BUILTIN_TORBOX_SEARCH_USER_AGENT || Env.DEFAULT_USER_AGENT,
-      SUPPORTED_SERVICES: supportedServices,
+      SUPPORTED_SERVICES: StremThruPreset.supportedServices,
       REQUIRES_SERVICE: true,
       DESCRIPTION:
         'Unofficial debrid/usenet addon for the TorBox Search API, with support for multiple services.',
@@ -236,10 +228,7 @@ export class TorBoxSearchPreset extends Preset {
       onlyShowUserSearchResults: options.onlyShowUserSearchResults ?? false,
       services: services.map((service) => ({
         id: service,
-        credential: this.getServiceCredential(service, userData, {
-          [constants.OFFCLOUD_SERVICE]: (credentials: any) =>
-            `${credentials.email}:${credentials.password}`,
-        }),
+        credential: this.getServiceCredential(service, userData),
       })),
     };
 

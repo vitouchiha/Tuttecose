@@ -25,10 +25,10 @@ class NuvioStreamsStreamParser extends StreamParser {
 
     parsedStream.type = 'http';
 
-    parsedStream.parsedFile = FileParser.parse(
-      `${stream.name}\n${stream.description}`
-    );
     parsedStream.filename = stream.description?.split('\n')[0];
+    parsedStream.parsedFile = parsedStream.filename
+      ? FileParser.parse(parsedStream.filename)
+      : FileParser.parse(`${stream.name}\n${stream.description}`);
     parsedStream.folderName = undefined;
 
     parsedStream.size = this.getSize(stream, parsedStream);
@@ -105,10 +105,6 @@ export class NuvioStreamsPreset extends Preset {
         label: 'Showbox',
       },
       {
-        value: 'soapertv',
-        label: 'Soapertv',
-      },
-      {
         value: 'vidzee',
         label: 'Vidzee',
       },
@@ -127,6 +123,14 @@ export class NuvioStreamsPreset extends Preset {
       {
         value: 'moviesmod',
         label: 'MoviesMod',
+      },
+      {
+        value: 'moviesdrive',
+        label: 'MoviesDrive',
+      },
+      {
+        value: '4khdhub',
+        label: '4KHDHub - 4K/HD',
       },
       {
         value: 'dramadrip',
@@ -161,7 +165,7 @@ export class NuvioStreamsPreset extends Preset {
         id: 'showBoxCookie',
         name: 'ShowBox Cookie',
         description:
-          'The cookie for the ShowBox provider. Highly recommended to get streams greater than 9GB. Log in at [Febbox](https://www.febbox.com/) > DevTools > Storage > Cookied > Copy the value of the `ui` cookie. ',
+          'The cookie for the ShowBox provider. Highly recommended to get streams greater than 9GB. Log in at [Febbox](https://www.febbox.com/) > DevTools > (Application if on Chromium) > Storage > Cookies > Copy the value of the `ui` cookie. ',
         type: 'password',
         required: false,
         default: '',

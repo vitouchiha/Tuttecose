@@ -3,8 +3,9 @@
 import { Addon, Option, ParsedStream, Stream, UserData } from '../db';
 import { Preset, baseOptions } from './preset';
 import { constants, Env, ServiceId } from '../utils';
+import { StremThruPreset } from './stremthru';
 
-export class FKStreamPreset extends Preset {
+export class FKStreamPreset extends StremThruPreset {
   static override get METADATA() {
     const supportedResources = [
       constants.CATALOG_RESOURCE,
@@ -157,12 +158,7 @@ export class FKStreamPreset extends Preset {
       streamFilter: 'all',
       debridService: serviceId || 'torrent',
       debridApiKey: serviceId
-        ? this.getServiceCredential(serviceId, userData, {
-            [constants.OFFCLOUD_SERVICE]: (credentials: any) =>
-              `${credentials.email}:${credentials.password}`,
-            [constants.PIKPAK_SERVICE]: (credentials: any) =>
-              `${credentials.email}:${credentials.password}`,
-          })
+        ? this.getServiceCredential(serviceId, userData)
         : '',
       debridStreamProxyPassword: '',
       maxActorsDisplay: 'all',

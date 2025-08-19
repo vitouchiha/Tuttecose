@@ -65,6 +65,26 @@ function Content() {
           />
         </SettingsCard>
         <SettingsCard
+          title="Auto Play Method"
+          description="What method AIOStreams should use for auto-play."
+        >
+          <Select
+            label="Auto Play Method"
+            options={[
+              { label: 'Matching File', value: 'matchingFile' },
+              { label: 'Matching Index', value: 'matchingIndex' },
+            ]}
+            value={userData.autoPlayMethod || 'matchingFile'}
+            onValueChange={(value) => {
+              setUserData((prev) => ({
+                ...prev,
+                autoPlayMethod: value as 'matchingFile' | 'matchingIndex',
+              }));
+            }}
+            help={`${userData.autoPlayMethod === 'matchingIndex' ? 'Guaranteed auto-play of the stream in the same position in the result list (assuming it exists) i.e. if you play the first stream, the first stream for the next episode will be played.' : 'Auto-play the stream that matches the attributes of the previous episode.'}`}
+          />
+        </SettingsCard>
+        <SettingsCard
           title="External Downloads"
           description="Adds a stream that automatically opens the stream in your browser below every stream for easier downloading"
         >

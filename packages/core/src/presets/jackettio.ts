@@ -3,6 +3,7 @@ import { baseOptions, Preset } from './preset';
 import { Env } from '../utils';
 import { constants, ServiceId } from '../utils';
 import { StreamParser } from '../parser';
+import { StremThruPreset } from './stremthru';
 
 class JackettioStreamParser extends StreamParser {
   override applyUrlModifications(url: string | undefined): string | undefined {
@@ -32,7 +33,7 @@ class JackettioStreamParser extends StreamParser {
   }
 }
 
-export class JackettioPreset extends Preset {
+export class JackettioPreset extends StremThruPreset {
   static override getParser(): typeof StreamParser {
     return JackettioStreamParser;
   }
@@ -168,12 +169,7 @@ export class JackettioPreset extends Preset {
       priotizePackTorrents: 2,
       excludeKeywords: [],
       debridId: serviceId,
-      debridApiKey: this.getServiceCredential(serviceId, userData, {
-        [constants.OFFCLOUD_SERVICE]: (credentials: any) =>
-          `${credentials.email}:${credentials.password}`,
-        [constants.PIKPAK_SERVICE]: (credentials: any) =>
-          `${credentials.email}:${credentials.password}`,
-      }),
+      debridApiKey: this.getServiceCredential(serviceId, userData),
       hideUncached: false,
       sortCached: [
         ['quality', true],

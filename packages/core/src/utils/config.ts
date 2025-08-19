@@ -265,12 +265,12 @@ export async function validateConfig(
   skipErrorsFromAddonsOrProxies: boolean = false,
   decryptValues: boolean = false
 ): Promise<UserData> {
-  const { success, data: config, error } = UserDataSchema.safeParse(data);
+  const { success, data: parsedData, error } = UserDataSchema.safeParse(data);
   if (!success) {
     throw new Error(formatZodError(error));
   }
 
-  applyMigrations(config);
+  const config = removeInvalidPresetReferences(applyMigrations(parsedData));
 
   if (
     Env.ADDON_PASSWORD.length > 0 &&
@@ -415,7 +415,42 @@ export async function validateConfig(
   return config;
 }
 
-export function applyMigrations(config: UserData) {
+function removeInvalidPresetReferences(config: UserData) {
+  // remove references to non-existent presets in options:
+  const existingPresetIds = config.presets?.map((preset) => preset.instanceId);
+  if (config.proxy) {
+    config.proxy.proxiedAddons = config.proxy.proxiedAddons?.filter((addon) =>
+      existingPresetIds?.includes(addon)
+    );
+  }
+  if (config.yearMatching) {
+    config.yearMatching.addons = config.yearMatching.addons?.filter((addon) =>
+      existingPresetIds?.includes(addon)
+    );
+  }
+  if (config.titleMatching) {
+    config.titleMatching.addons = config.titleMatching.addons?.filter((addon) =>
+      existingPresetIds?.includes(addon)
+    );
+  }
+  if (config.seasonEpisodeMatching) {
+    config.seasonEpisodeMatching.addons =
+      config.seasonEpisodeMatching.addons?.filter((addon) =>
+        existingPresetIds?.includes(addon)
+      );
+  }
+  if (config.groups) {
+    config.groups = config.groups.map((group) => ({
+      ...group,
+      addons: group.addons?.filter((addon) =>
+        existingPresetIds?.includes(addon)
+      ),
+    }));
+  }
+  return config;
+}
+
+export function applyMigrations(config: UserData): UserData {
   if (config.titleMatching?.matchYear) {
     config.yearMatching = {
       enabled: true,
@@ -427,6 +462,7 @@ export function applyMigrations(config: UserData) {
     };
     delete config.titleMatching.matchYear;
   }
+  return config;
 }
 
 async function validateRegexes(config: UserData) {

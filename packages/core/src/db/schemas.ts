@@ -423,6 +423,7 @@ export const UserDataSchema = z.object({
     })
     .optional(),
   deduplicator: DeduplicatorOptions.optional(),
+  autoPlayMethod: z.enum(['matchingFile', 'matchingIndex']).optional(),
   precacheNextEpisode: z.boolean().optional(),
   alwaysPrecache: z.boolean().optional(),
   services: ServiceList.optional(),

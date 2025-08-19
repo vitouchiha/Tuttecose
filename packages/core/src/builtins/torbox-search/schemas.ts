@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { constants } from '../../utils';
+import { StremThruPreset } from '../../presets/stremthru';
+import { ServiceId } from '../../utils';
 
 const TorBoxApiErrorResponseSchema = z.object({
   success: z.literal(false),
@@ -92,16 +93,9 @@ export const TorBoxSearchAddonUserDataSchema = z.object({
   services: z
     .array(
       z.object({
-        id: z.enum([
-          constants.TORBOX_SERVICE,
-          constants.REALDEBRID_SERVICE,
-          constants.DEBRIDLINK_SERVICE,
-          constants.PREMIUMIZE_SERVICE,
-          constants.ALLDEBRID_SERVICE,
-          constants.EASYDEBRID_SERVICE,
-          constants.PUTIO_SERVICE,
-          constants.PIKPAK_SERVICE,
-        ]),
+        id: z.enum(
+          StremThruPreset.supportedServices as [ServiceId, ...ServiceId[]]
+        ),
         credential: z.string(),
       })
     )
