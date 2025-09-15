@@ -9,7 +9,7 @@ import {
 } from './debridio';
 
 class DebridioWatchtowerStreamParser extends StreamParser {
-  parse(stream: Stream): ParsedStream {
+  override parse(stream: Stream): ParsedStream | { skip: true } {
     let parsedStream: ParsedStream = {
       id: this.getRandomId(),
       addon: this.addon,
@@ -26,6 +26,10 @@ class DebridioWatchtowerStreamParser extends StreamParser {
     };
 
     stream.description = stream.description || stream.title;
+
+    if (stream.description?.toLowerCase().includes('no streams available')) {
+      return { skip: true };
+    }
 
     parsedStream.type = 'http';
     let resolution = (stream as any).resolution;

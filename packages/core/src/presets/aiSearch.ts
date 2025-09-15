@@ -277,10 +277,19 @@ export class AISearchPreset extends Preset {
           'User-Agent': this.METADATA.USER_AGENT,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+          configData: config,
+        }),
       });
       if (!response.ok) {
-        throw new Error(`${response.status} - ${response.statusText}`);
+        const error = z
+          .object({
+            error: z.string(),
+          })
+          .safeParse(await response.json());
+        throw new Error(
+          `${error.data?.error} (${response.status} - ${response.statusText})`
+        );
       }
       const data = await response.json();
       const schema = z.object({

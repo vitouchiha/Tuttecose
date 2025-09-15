@@ -9,6 +9,8 @@ import {
   constants,
   formatZodError,
   validateConfig,
+  isEncrypted,
+  decryptString,
 } from '@aiostreams/core';
 import { streamApiRateLimiter } from '../../middlewares/ratelimit';
 import { createLogger } from '@aiostreams/core';
@@ -101,6 +103,24 @@ router.get(
               undefined,
               `Missing username or password in basic auth`
             );
+          }
+          if (isEncrypted(password)) {
+            const {
+              success: successfulDecryption,
+              data: decryptedPassword,
+              error,
+            } = decryptString(password);
+            if (!successfulDecryption) {
+              next(
+                new APIError(
+                  constants.ErrorCode.ENCRYPTION_ERROR,
+                  undefined,
+                  error
+                )
+              );
+              return;
+            }
+            password = decryptedPassword;
           }
           logger.debug(`Using basic auth for Search API request: ${uuid}`);
         } catch (error: any) {

@@ -189,9 +189,10 @@ export class Wrapper {
       requestFn,
       timeout: options?.timeout ?? Env.MANIFEST_TIMEOUT,
       resourceName: 'manifest',
-      cacher: options?.bypassCache ? undefined : manifestCache,
+      cacher: manifestCache,
       cacheKey,
       cacheTtl: Env.MANIFEST_CACHE_TTL,
+      bypassCache: options?.bypassCache,
     });
   }
 
@@ -358,6 +359,7 @@ export class Wrapper {
     cacheKey: string;
     cacheTtl: number;
     shouldCache?: (data: T) => boolean;
+    bypassCache?: boolean;
   }): Promise<T> {
     const {
       requestFn,
@@ -367,9 +369,10 @@ export class Wrapper {
       cacheKey,
       cacheTtl,
       shouldCache,
+      bypassCache,
     } = options;
 
-    if (cacher) {
+    if (cacher && !bypassCache) {
       const cached = await cacher.get(cacheKey);
       if (cached) {
         logger.debug(
@@ -382,6 +385,7 @@ export class Wrapper {
     const processRequest = async () => {
       const result = await requestFn();
       const doCache = shouldCache ? shouldCache(result) : true;
+      // bypass cache only skips retrieving from cache, it still caches the result
       if (cacher && doCache) {
         await cacher.set(cacheKey, result, cacheTtl);
       }

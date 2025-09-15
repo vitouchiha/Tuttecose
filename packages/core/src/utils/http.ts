@@ -4,6 +4,7 @@ import { Env } from './env';
 import { createLogger, maskSensitiveInfo } from './logger';
 import {
   BodyInit,
+  Dispatcher,
   fetch,
   Headers,
   HeadersInit,
@@ -132,22 +133,30 @@ export async function makeRequest(url: string, options: RequestOptions) {
   return response;
 }
 
-function getProxyAgent(proxyUrl: string) {
+const proxyAgents = new Map<string, Dispatcher>();
+function getProxyAgent(proxyUrl: string): Dispatcher | undefined {
   if (!proxyUrl) {
     return undefined;
   }
-  const proxyUrlObj = new URL(proxyUrl);
-  if (proxyUrlObj.protocol === 'socks5:') {
-    return socksDispatcher({
-      type: 5,
-      port: parseInt(proxyUrlObj.port),
-      host: proxyUrlObj.hostname,
-      userId: proxyUrlObj.username || undefined,
-      password: proxyUrlObj.password || undefined,
-    });
-  } else {
-    return new ProxyAgent(proxyUrl);
+
+  let proxyAgent = proxyAgents.get(proxyUrl);
+
+  if (!proxyAgent) {
+    const proxyUrlObj = new URL(proxyUrl);
+    if (proxyUrlObj.protocol === 'socks5:') {
+      proxyAgent = socksDispatcher({
+        type: 5,
+        port: parseInt(proxyUrlObj.port),
+        host: proxyUrlObj.hostname,
+        userId: proxyUrlObj.username || undefined,
+        password: proxyUrlObj.password || undefined,
+      });
+    } else {
+      proxyAgent = new ProxyAgent(proxyUrl);
+    }
   }
+
+  return proxyAgent;
 }
 
 function shouldProxy(url: URL): {

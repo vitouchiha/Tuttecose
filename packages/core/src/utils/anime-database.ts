@@ -203,6 +203,13 @@ const ManamiEntrySchema = z.object({
 });
 type ManamiEntry = z.infer<typeof ManamiEntrySchema>;
 
+const MinimisedManamiEntrySchema = ManamiEntrySchema.pick({
+  title: true,
+  animeSeason: true,
+  synonyms: true,
+});
+type MinimisedManamiEntry = z.infer<typeof MinimisedManamiEntrySchema>;
+
 const KitsuEntrySchema = z
   .object({
     fanartLogoId: z.coerce.number().optional(),
@@ -304,8 +311,63 @@ const ExtendedAnitraktTvEntrySchema = z
 
 type ExtendedAnitraktTvEntry = z.infer<typeof ExtendedAnitraktTvEntrySchema>;
 
+const AnimeEntrySchema = z
+  .object({
+    mappings: z
+      .record(
+        z.string(),
+        z.union([z.string(), z.number(), z.null(), z.undefined()])
+      )
+      .optional(),
+    imdb: z
+      .object({
+        fromImdbSeason: z.number().optional(),
+        fromImdbEpisode: z.number().optional(),
+        title: z.string().optional(),
+      })
+      .nullable(),
+    fanart: z
+      .object({
+        logoId: z.number(),
+      })
+      .nullable(),
+    trakt: z
+      .object({
+        title: z.string(),
+        slug: z.string(),
+        isSplitCour: z.boolean().optional(),
+        season: z
+          .object({
+            id: z.number(),
+            number: z.number(),
+            externals: z.object({
+              tvdb: z.number().nullable(),
+              tmdb: z.number().nullable(),
+              imdb: z.string().nullable().optional(),
+            }),
+          })
+          .nullable()
+          .optional(),
+      })
+      .nullable(),
+    title: z.string().optional(),
+    animeSeason: z
+      .object({
+        season: AnimeSeason,
+        year: z.number().nullable(),
+      })
+      .optional(),
+    synonyms: z.array(z.string()).optional(),
+  })
+  .nullable();
+
+type AnimeEntry = z.infer<typeof AnimeEntrySchema>;
+
 type MappingIdMap = Map<IdType, Map<string | number, MappingEntry>>;
-type ManamiIdMap = Map<IdType, Map<string | number, ManamiEntry>>;
+type ManamiIdMap = Map<
+  IdType,
+  Map<string | number, ManamiEntry | MinimisedManamiEntry>
+>;
 type KitsuIdMap = Map<number, KitsuEntry>;
 type ExtendedAnitraktMoviesIdMap = Map<number, ExtendedAnitraktMovieEntry>;
 type ExtendedAnitraktTvIdMap = Map<number, ExtendedAnitraktTvEntry>;
@@ -353,6 +415,14 @@ export class AnimeDatabase {
       return;
     }
 
+    if (Env.ANIME_DB_LEVEL_OF_DETAIL === 'none') {
+      logger.info(
+        'AnimeDatabase detail level is none, skipping initialisation.'
+      );
+      this.isInitialised = true;
+      return;
+    }
+
     logger.info('Starting initial refresh of all anime data sources...');
     // Perform initial fetch for all datasets concurrently
     const refreshPromises = Object.values(DATA_SOURCES).map((dataSource) =>
@@ -375,7 +445,7 @@ export class AnimeDatabase {
     return false;
   }
 
-  public getEntryById(idType: IdType, idValue: string | number) {
+  public getEntryById(idType: IdType, idValue: string | number): AnimeEntry {
     const getFromMap = <T>(map: Map<any, T> | undefined, key: any) =>
       map?.get(key) || map?.get(key.toString()) || map?.get(Number(key));
 
@@ -501,64 +571,33 @@ export class AnimeDatabase {
   private async refreshDataSource(
     source: (typeof DATA_SOURCES)[keyof typeof DATA_SOURCES]
   ): Promise<void> {
-    const lockKey = `anime-datasource-refresh-${source.dataKey}`;
-    const lockOptions = { timeout: 10000, ttl: 12000 };
-
-    let lockAcquired = false;
-    let firstError: any = null;
-
-    for (let attempt = 0; attempt < 2 && !lockAcquired; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await DistributedLock.getInstance().withLock(
-          lockKey,
-          async () => {
-            try {
-              const remoteEtag = await this.fetchRemoteEtag(source.url);
-              const localEtag = await this.readLocalFile(source.etagPath);
+        const remoteEtag = await this.fetchRemoteEtag(source.url);
+        const localEtag = await this.readLocalFile(source.etagPath);
 
-              const isDbMissing = !(await this.fileExists(source.filePath));
-              const isOutOfDate =
-                !remoteEtag || !localEtag || remoteEtag !== localEtag;
+        const isDbMissing = !(await this.fileExists(source.filePath));
+        const isOutOfDate =
+          !remoteEtag || !localEtag || remoteEtag !== localEtag;
 
-              if (isDbMissing || isOutOfDate) {
-                logger.info(
-                  `[${source.name}] Source is missing or out of date. Downloading...`
-                );
-                await this.downloadFile(
-                  source.url,
-                  source.filePath,
-                  source.etagPath,
-                  remoteEtag
-                );
-              } else {
-                logger.info(`[${source.name}] Source is up to date.`);
-              }
-            } catch (error) {
-              logger.error(
-                `[${source.name}] Failed to refresh: ${error}. Will retry on next cycle.`
-              );
-            }
-          },
-          lockOptions
-        );
-        lockAcquired = true;
-        // Dynamically call the correct loader
-        // the lock is only needed to avoid multiple instances trying to download files at the same time.
-        // since the loader needs to be called per instance as its in memory, it needs to be called outside of the lock.
+        if (isDbMissing || isOutOfDate) {
+          logger.info(
+            `[${source.name}] Source is missing or out of date. Downloading...`
+          );
+          await this.downloadFile(
+            source.url,
+            source.filePath,
+            source.etagPath,
+            remoteEtag
+          );
+        } else {
+          logger.info(`[${source.name}] Source is up to date.`);
+        }
         await this[source.loader]();
       } catch (error) {
-        if (attempt === 0) {
-          // First attempt failed, wait for ttl before retrying
-          logger.error(`[${source.name}] Failed to refresh: ${error}`);
-          firstError = error;
-          logger.warn(
-            `[${source.name}] Lock acquisition failed, will retry after ${lockOptions.ttl}ms`
-          );
-          await new Promise((resolve) => setTimeout(resolve, lockOptions.ttl));
-        } else {
-          // Second attempt failed, log and exit
-          logger.error(`[${source.name}] Will retry on next cycle.`);
-        }
+        logger.error(
+          `[${source.name}] Failed to refresh: ${error}. Will retry ${attempt === 0 ? '1 more time' : 'on next refresh interval'}.`
+        );
       }
     }
   }
@@ -633,7 +672,14 @@ export class AnimeDatabase {
             if (idValue) {
               const existingEntry = newManamiById.get(idType)?.get(idValue);
               if (!existingEntry) {
-                newManamiById.get(idType)?.set(idValue, entry);
+                newManamiById
+                  .get(idType)
+                  ?.set(
+                    idValue,
+                    Env.ANIME_DB_LEVEL_OF_DETAIL === 'required'
+                      ? this.minimiseManamiEntry(entry)
+                      : entry
+                  );
               }
             }
           }
@@ -644,6 +690,14 @@ export class AnimeDatabase {
     logger.info(
       `[${DATA_SOURCES.manami.name}] Loaded and indexed ${validEntries.length} valid entries in ${getTimeTakenSincePoint(start)}`
     );
+  }
+
+  private minimiseManamiEntry(entry: ManamiEntry): MinimisedManamiEntry {
+    return {
+      title: entry.title,
+      animeSeason: entry.animeSeason,
+      synonyms: entry.synonyms,
+    };
   }
 
   private async loadKitsuImdbMapping(): Promise<void> {

@@ -1,10 +1,12 @@
-import { Addon } from '../db/schemas';
+import { Addon, Preset } from '../db/schemas';
 import { parseConnectionURI } from '../db/utils';
 import { Env } from './env';
 import path from 'path';
 
-export function getAddonName(addon: Addon): string {
-  return `${addon.name}${addon.displayIdentifier || addon.identifier ? ` ${addon.displayIdentifier || addon.identifier}` : ''}`;
+export function getAddonName(addon: Addon | Preset): string {
+  return 'type' in addon
+    ? addon.type
+    : `${addon.name}${addon.displayIdentifier || addon.identifier ? ` ${addon.displayIdentifier || addon.identifier}` : ''}`;
 }
 
 export function getDataFolder(): string {

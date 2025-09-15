@@ -176,6 +176,13 @@ export class MetadataService {
           );
         }
 
+        if (id.type === 'malId' || id.type === 'kitsuId') {
+          // if the requested ID is a mal or kitsu ID, we can safely use the title from the anime entry
+          // if the requested ID was an IMDB ID instead, the entry would only be for the first season entry which may not be the correct title
+          if (animeEntry?.title) {
+            titles.unshift(animeEntry.title);
+          }
+        }
         // Deduplicate titles, lowercase all before deduplication
         const uniqueTitles = [
           ...new Set(titles.map((title) => title.toLowerCase())),

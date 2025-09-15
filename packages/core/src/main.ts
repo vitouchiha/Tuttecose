@@ -25,6 +25,7 @@ import {
   MetaPreview,
   ParsedMeta,
   ParsedStream,
+  Preset,
   Subtitle,
 } from './db/schemas';
 import { createProxy } from './proxy';
@@ -89,7 +90,7 @@ export class AIOStreams {
   private precomputer: Precomputer;
 
   private addonInitialisationErrors: {
-    addon: Addon;
+    addon: Addon | Preset;
     error: string;
   }[] = [];
 
@@ -676,24 +677,36 @@ export class AIOStreams {
     }
 
     for (const preset of this.userData.presets.filter((p) => p.enabled)) {
-      const addons = await PresetManager.fromId(preset.type).generateAddons(
-        this.userData,
-        preset.options
-      );
-      this.addons.push(
-        ...addons.map(
-          (a): Addon => ({
-            ...a,
-            preset: {
-              ...a.preset,
-              id: preset.instanceId,
-            },
-            // if no identifier is present, we can assume that the preset can only generate one addon at a time and so no
-            // unique identifier is needed as the preset instance id is enough to identify the addon
-            instanceId: `${preset.instanceId}${getSimpleTextHash(`${a.identifier ?? ''}`).slice(0, 4)}`,
-          })
-        )
-      );
+      try {
+        const addons = await PresetManager.fromId(preset.type).generateAddons(
+          this.userData,
+          preset.options
+        );
+        this.addons.push(
+          ...addons.map(
+            (a): Addon => ({
+              ...a,
+              preset: {
+                ...a.preset,
+                id: preset.instanceId,
+              },
+              // if no identifier is present, we can assume that the preset can only generate one addon at a time and so no
+              // unique identifier is needed as the preset instance id is enough to identify the addon
+              instanceId: `${preset.instanceId}${getSimpleTextHash(`${a.identifier ?? ''}`).slice(0, 4)}`,
+            })
+          )
+        );
+      } catch (error) {
+        if (this.options?.skipFailedAddons !== false) {
+          this.addonInitialisationErrors.push({
+            addon: preset,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          logger.error(
+            `${error instanceof Error ? error.message : String(error)}, skipping`
+          );
+        }
+      }
     }
 
     if (this.addons.length > Env.MAX_ADDONS) {

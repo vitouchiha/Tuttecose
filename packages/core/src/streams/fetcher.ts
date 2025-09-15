@@ -224,11 +224,13 @@ class StreamFetcher {
               totalTimeTaken,
               queryType
             );
-            const shouldInclude = await evaluator.evaluate(group.condition);
+            const shouldIncludeAndContinue = await evaluator.evaluate(
+              group.condition
+            );
 
-            if (shouldInclude) {
+            if (shouldIncludeAndContinue) {
               logger.info(
-                `Condition met for parallel group ${i + 1}, including streams.`
+                `Condition met for parallel group ${i + 1}, including streams and continuing.`
               );
               allStreams.push(...groupResult.streams);
               allErrors.push(...groupResult.errors);
@@ -238,8 +240,10 @@ class StreamFetcher {
               previousGroupTimeTaken = groupResult.totalTime;
             } else {
               logger.info(
-                `Condition not met for parallel group ${i + 1}, skipping streams.`
+                `Condition not met for parallel group ${i + 1}, skipping remaining groups.`
               );
+              // exit early.
+              break;
             }
           }
         }
