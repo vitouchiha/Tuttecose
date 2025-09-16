@@ -19,7 +19,7 @@ import {
 } from '../db';
 import { createFormatter } from '../formatters';
 import { AIOStreamsError, AIOStreamsResponse } from '../main';
-import { createLogger } from '../utils';
+import { createLogger, getTimeTakenSincePoint } from '../utils';
 
 type ErrorOptions = {
   errorTitle?: string;
@@ -213,9 +213,7 @@ export class StremioTransformer {
 
     const formatter = createFormatter(this.userData);
 
-    logger.info(
-      `Transforming ${streams.length} streams, using formatter ${this.userData.formatter.id}`
-    );
+    const start = Date.now();
 
     transformedStreams = await Promise.all(
       streams.map((stream: ParsedStream, index: number) =>
@@ -226,6 +224,10 @@ export class StremioTransformer {
           provideStreamData ?? false
         )
       )
+    );
+
+    logger.info(
+      `Transformed ${streams.length} streams using ${this.userData.formatter.id} formatter in ${getTimeTakenSincePoint(start)}`
     );
 
     // add errors to the end (if this.userData.hideErrors is false  or the resource is not in this.userData.hideErrorsForResources)

@@ -52,7 +52,7 @@ export class StremThruInterface implements DebridService {
         token: config.token,
       },
       clientIp: config.clientIp,
-      timeout: 20000,
+      timeout: 10000,
     });
   }
 

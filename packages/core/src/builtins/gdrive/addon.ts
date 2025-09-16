@@ -174,7 +174,7 @@ export class GDriveAddon {
 
   private async getMetadata(parsedId: ParsedId, type: string) {
     let titles: string[];
-    let year: number;
+    let year: number | undefined;
 
     switch (true) {
       case parsedId.type === 'malId':
@@ -242,7 +242,7 @@ export class GDriveAddon {
 
   private buildSearchQuery(
     titles: string[],
-    year: number,
+    year?: number,
     season?: string,
     episode?: string
   ) {
@@ -273,7 +273,7 @@ export class GDriveAddon {
       ])
     );
 
-    if (isShow) {
+    if (isShow || !year) {
       query += ` and (${possibleTitles.map((title) => `name contains '${title}'`).join(' or ')})`;
     } else {
       query += ` and (${possibleTitles.map((title) => `name contains '${title} ${year}'`).join(' or ')})`;

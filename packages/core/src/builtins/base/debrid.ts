@@ -19,6 +19,7 @@ import {
   NZBWithSelectedFile,
   UnprocessedTorrent,
   ServiceAuth,
+  DebridError,
 } from '../../debrid';
 import { processTorrents, processNZBs } from '../utils/debrid';
 import { calculateAbsoluteEpisode } from '../utils/general';
@@ -106,7 +107,19 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
       requestType: type,
       requestId: id,
     });
-    const searchMetadata = await this._getSearchMetadata(parsedId, type);
+
+    let searchMetadata: SearchMetadata;
+    try {
+      searchMetadata = await this._getSearchMetadata(parsedId, type);
+    } catch (error) {
+      this.logger.error(`Failed to get search metadata for ${id}: ${error}`);
+      return [
+        this._createErrorStream({
+          title: `${this.name}`,
+          description: 'Failed to get metadata',
+        }),
+      ];
+    }
 
     const searchPromises = await Promise.allSettled([
       this._searchTorrents(parsedId, searchMetadata),
@@ -197,12 +210,19 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
     const processingErrors = [
       ...processedTorrents.errors,
       ...processedNzbs.errors,
-    ].map((error) =>
-      this._createErrorStream({
-        title: `${this.name} ${constants.SERVICE_DETAILS[error.serviceId].shortName}`,
-        description: error.error.message,
-      })
-    );
+    ].map((error) => {
+      let errMsg = error.error.message;
+      if (error instanceof DebridError) {
+        switch (error.code) {
+          case 'UNAUTHORIZED':
+            errMsg = 'Invalid Credentials';
+        }
+      }
+      return this._createErrorStream({
+        title: `${this.name}`,
+        description: `[${constants.SERVICE_DETAILS[error.serviceId].shortName}] ${errMsg}`,
+      });
+    });
 
     return [...resultStreams, ...searchErrors, ...processingErrors];
   }
@@ -231,7 +251,7 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
     if (animeEntry && !parsedId.season) {
       parsedId.season =
         animeEntry.imdb?.fromImdbSeason?.toString() ??
-        animeEntry.trakt?.season?.toString();
+        animeEntry.trakt?.season?.number?.toString();
     }
 
     const metadata = await new MetadataService({

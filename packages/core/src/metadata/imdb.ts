@@ -51,8 +51,13 @@ export class IMDBMetadata {
       if (!cinemetaData.name || !cinemetaData.year) {
         throw new Error('Cinemeta data is missing title or year');
       }
-      let year = Number(cinemetaData.releaseInfo?.toString().split('-')[0]);
-      let yearEnd = Number(cinemetaData.releaseInfo?.toString().split('-')[1]);
+      const years =
+        cinemetaData.releaseInfo
+          ?.toString()
+          .split(/[-–—]/)
+          .map((y) => y.trim()) ?? [];
+      let year = years.length ? Number(years[0]) : NaN;
+      let yearEnd = years.length > 1 ? Number(years[1]) : NaN;
       if (isNaN(yearEnd)) {
         yearEnd = new Date().getFullYear();
       }
@@ -93,8 +98,11 @@ export class IMDBMetadata {
     const year = item.y;
     let yearEnd: number | undefined = undefined;
     const yearString = item.yr;
-    if (yearString && yearString.includes('-')) {
-      yearEnd = Number(yearString.split('-')[1]);
+    if (yearString) {
+      const years = yearString.split(/[-–—]/).map((y) => y.trim());
+      if (years.length > 1) {
+        yearEnd = Number(years[1]);
+      }
     }
     this.titleCache.set(key, { title, year, yearEnd }, this.titleCacheTTL);
     return { title, year, yearEnd };
@@ -107,7 +115,7 @@ export class IMDBMetadata {
       return cached;
     }
     const response = await makeRequest(url, {
-      timeout: 1000,
+      timeout: 2000,
     });
     const meta = MetaSchema.parse(((await response.json()) as any).meta);
     this.cinemetaCache.set(url, meta, this.cinemetaCacheTTL);

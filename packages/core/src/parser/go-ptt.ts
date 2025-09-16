@@ -25,11 +25,11 @@ class PTT {
     os.platform() === 'win32'
       ? {
           network: 'tcp',
-          address: `:${Env.PORT + 1}`,
+          address: `:${Env.PTT_PORT}`,
         }
       : {
           network: 'unix',
-          address: 'ptt.sock',
+          address: Env.PTT_SOCKET,
         };
 
   private constructor() {}
