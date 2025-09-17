@@ -144,14 +144,27 @@ export class MetadataService {
           const cinemetaData = imdbResult.value;
           if (cinemetaData.name) titles.unshift(cinemetaData.name);
           if (cinemetaData.releaseInfo && !year) {
-            const years = cinemetaData.releaseInfo
-              .toString()
-              .split(/[-–—]/)
-              .map((y) => y.trim());
-            if (years.length > 0 && Number.isInteger(Number(years[0])))
-              year = Number(years[0]);
-            if (years.length > 1 && Number.isInteger(Number(years[1])))
-              yearEnd = Number(years[1]);
+            if (cinemetaData.releaseInfo) {
+              const parts = cinemetaData.releaseInfo.toString().split(/[-–—]/);
+              const start = parts[0]?.trim();
+              const end = parts[1]?.trim();
+
+              if (start) {
+                year = Number(start);
+              }
+
+              if (end) {
+                // Handles 'YYYY-YYYY'
+                yearEnd = Number(end);
+              } else if (parts.length > 1) {
+                // Handles 'YYYY-' (ongoing series)
+                yearEnd = new Date().getFullYear();
+              }
+            } else if (cinemetaData.year) {
+              year = Number.isInteger(Number(cinemetaData.year))
+                ? Number(cinemetaData.year)
+                : undefined;
+            }
           }
           if (cinemetaData.videos) {
             const seasonMap = new Map<number, Set<number>>();

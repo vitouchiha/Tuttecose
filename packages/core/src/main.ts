@@ -705,6 +705,8 @@ export class AIOStreams {
           logger.error(
             `${error instanceof Error ? error.message : String(error)}, skipping`
           );
+        } else {
+          throw error;
         }
       }
     }

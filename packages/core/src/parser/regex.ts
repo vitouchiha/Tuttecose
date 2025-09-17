@@ -93,7 +93,7 @@ export const PARSE_REGEX: PARSE_REGEX = {
     FLAC: createRegex('flac(?:[ .\\-_]?(lossless|2\\.0|x[2-4]))?'),
   },
   audioChannels: {
-    '2.0': createRegex('(d(olby)?[ .\\-_]?d(igital)?)?2[ .\\-_]?0?(ch)?'),
+    '2.0': createRegex('(d(olby)?[ .\\-_]?d(igital)?)?2[ .\\-_]?0(ch)?'),
     '5.1': createRegex(
       '(d(olby)?[ .\\-_]?d(igital)?[ .\\-_]?(p(lus)?|\\+)?)?5[ .\\-_]?1(ch)?'
     ),

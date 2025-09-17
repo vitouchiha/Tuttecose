@@ -51,16 +51,28 @@ export class IMDBMetadata {
       if (!cinemetaData.name || !cinemetaData.year) {
         throw new Error('Cinemeta data is missing title or year');
       }
-      const years =
-        cinemetaData.releaseInfo
-          ?.toString()
-          .split(/[-–—]/)
-          .map((y) => y.trim()) ?? [];
-      let year = years.length ? Number(years[0]) : NaN;
-      let yearEnd = years.length > 1 ? Number(years[1]) : NaN;
-      if (isNaN(yearEnd)) {
-        yearEnd = new Date().getFullYear();
+      let year = NaN;
+      let yearEnd = NaN;
+
+      if (cinemetaData.releaseInfo) {
+        const parts = cinemetaData.releaseInfo.toString().split(/[-–—]/);
+        const start = parts[0]?.trim();
+        const end = parts[1]?.trim();
+
+        if (start) {
+          year = Number(start);
+        }
+
+        if (end) {
+          // Handles 'YYYY-YYYY'
+          yearEnd = Number(end);
+        } else if (parts.length > 1) {
+          // Handles 'YYYY-' (ongoing series)
+          yearEnd = new Date().getFullYear();
+        }
       }
+
+      // Fallback to cinemetaData.year if parsing releaseInfo fails
       if (isNaN(year) && Number.isInteger(Number(cinemetaData.year))) {
         year = Number(cinemetaData.year);
       }

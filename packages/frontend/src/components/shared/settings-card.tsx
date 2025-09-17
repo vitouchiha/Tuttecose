@@ -14,6 +14,7 @@ type SettingsCardProps = {
   children: React.ReactNode;
   className?: string;
   action?: React.ReactNode;
+  titleClassName?: string;
 };
 
 export function SettingsNavCard({ title, children }: SettingsCardProps) {
@@ -53,6 +54,7 @@ export function SettingsCard({
   description,
   children,
   className,
+  titleClassName,
   action,
 }: SettingsCardProps) {
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -81,7 +83,12 @@ export function SettingsCard({
           <CardHeader className="p-0 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <CardTitle className="font-bold tracking-widest uppercase text-sm transition-colors duration-300 group-hover/settings-card:text-white group-hover/settings-card:from-brand-500/10 group-hover/settings-card:to-purple-500/5 px-4 py-2 border bg-transparent bg-gradient-to-br bg-[--subtle] border-t-0 border-l-0 w-fit rounded-tl-md rounded-br-md">
+                <CardTitle
+                  className={cn(
+                    'font-bold tracking-widest uppercase text-sm transition-colors duration-300 group-hover/settings-card:text-white group-hover/settings-card:from-brand-500/10 group-hover/settings-card:to-purple-500/5 px-4 py-2 border bg-transparent bg-gradient-to-br bg-[--subtle] border-t-0 border-l-0 w-fit rounded-tl-md rounded-br-md',
+                    titleClassName
+                  )}
+                >
                   {title}
                 </CardTitle>
                 {description && (
