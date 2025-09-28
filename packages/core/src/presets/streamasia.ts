@@ -1,8 +1,15 @@
-import { Addon, Option, UserData, Resource, Stream, ParsedStream } from '../db';
-import { baseOptions, Preset } from './preset';
-import { createLogger, Env } from '../utils';
-import { constants, ServiceId } from '../utils';
-import { StreamParser } from '../parser';
+import {
+  Addon,
+  Option,
+  UserData,
+  Resource,
+  Stream,
+  ParsedStream,
+} from '../db/index.js';
+import { baseOptions, Preset } from './preset.js';
+import { createLogger, Env } from '../utils/index.js';
+import { constants, ServiceId } from '../utils/index.js';
+import { StreamParser } from '../parser/index.js';
 
 const logger = createLogger('core');
 

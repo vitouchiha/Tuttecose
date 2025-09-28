@@ -1,8 +1,8 @@
-import { Addon, Option, Stream, UserData } from '../db';
-import { Preset, baseOptions } from './preset';
-import { Env, RESOURCES, ServiceId, constants } from '../utils';
-import { StremThruPreset } from './stremthru';
-import { BuiltinAddonPreset } from './builtin';
+import { Addon, Option, Stream, UserData } from '../db/index.js';
+import { Preset, baseOptions } from './preset.js';
+import { Env, RESOURCES, ServiceId, constants } from '../utils/index.js';
+import { StremThruPreset } from './stremthru.js';
+import { BuiltinAddonPreset } from './builtin.js';
 
 export class ProwlarrPreset extends BuiltinAddonPreset {
   static override get METADATA() {
@@ -25,6 +25,7 @@ export class ProwlarrPreset extends BuiltinAddonPreset {
         constraints: {
           min: Env.MIN_TIMEOUT,
           max: Env.MAX_TIMEOUT,
+          forceInUi: false,
         },
       },
       {
@@ -42,6 +43,63 @@ export class ProwlarrPreset extends BuiltinAddonPreset {
         default: undefined,
         emptyIsUndefined: true,
       },
+      ...(Env.BUILTIN_PROWLARR_URL && Env.BUILTIN_PROWLARR_API_KEY
+        ? [
+            {
+              id: 'notRequiredNote',
+              name: '',
+              description:
+                'This instance has a preconfigured Prowlarr instance. You do not need to set the Prowlarr URL and API Key below. ',
+              type: 'alert',
+              intent: 'info',
+            } as const,
+          ]
+        : []),
+      {
+        id: 'prowlarrUrl',
+        name: 'Prowlarr URL',
+        description: 'The URL of the Prowlarr instance',
+        type: 'url',
+        required: !Env.BUILTIN_PROWLARR_URL || !Env.BUILTIN_PROWLARR_API_KEY,
+      },
+      {
+        id: 'prowlarrApiKey',
+        name: 'Prowlarr API Key',
+        description: 'The API key for the Prowlarr instance',
+        type: 'password',
+        required: !Env.BUILTIN_PROWLARR_URL || !Env.BUILTIN_PROWLARR_API_KEY,
+      },
+      {
+        id: 'tags',
+        name: 'Tags',
+        description:
+          'Optionally provide a comma separated list of tags here to limit the indexers to be used. Only indexers with these tags will be used.',
+        type: 'string',
+      },
+      {
+        id: 'mediaTypes',
+        name: 'Media Types',
+        description:
+          'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
+        type: 'multi-select',
+        required: false,
+        showInNoobMode: false,
+        default: [],
+        options: [
+          {
+            label: 'Movie',
+            value: 'movie',
+          },
+          {
+            label: 'Series',
+            value: 'series',
+          },
+          {
+            label: 'Anime',
+            value: 'anime',
+          },
+        ],
+      },
     ];
 
     return {
@@ -52,8 +110,7 @@ export class ProwlarrPreset extends BuiltinAddonPreset {
       TIMEOUT: Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: StremThruPreset.supportedServices,
-      DESCRIPTION:
-        'Directly search a Prowlarr instance for results with your services.',
+      DESCRIPTION: 'An addon to get debrid results from a Prowlarr instance.',
       OPTIONS: options,
       SUPPORTED_STREAM_TYPES: [constants.DEBRID_STREAM_TYPE],
       SUPPORTED_RESOURCES: supportedResources,
@@ -96,6 +153,7 @@ export class ProwlarrPreset extends BuiltinAddonPreset {
       enabled: true,
       library: options.libraryAddon ?? false,
       resources: options.resources || undefined,
+      mediaTypes: options.mediaTypes || [],
       timeout: options.timeout || this.METADATA.TIMEOUT,
       preset: {
         id: '',
@@ -117,16 +175,27 @@ export class ProwlarrPreset extends BuiltinAddonPreset {
     services: ServiceId[],
     options: Record<string, any>
   ) {
+    let prowlarrUrl = undefined;
+    let prowlarrApiKey = undefined;
+
+    if (options.prowlarrUrl || options.prowlarrApiKey) {
+      prowlarrUrl = options.prowlarrUrl;
+      prowlarrApiKey = options.prowlarrApiKey;
+    } else {
+      prowlarrUrl = Env.BUILTIN_PROWLARR_URL;
+      prowlarrApiKey = Env.BUILTIN_PROWLARR_API_KEY;
+    }
+
+    if (!prowlarrUrl || !prowlarrApiKey) {
+      throw new Error('Prowlarr URL and API Key are required');
+    }
+
     const config = {
-      url: Env.BUILTIN_PROWLARR_URL,
-      apiKey: Env.BUILTIN_PROWLARR_API_KEY,
+      ...this.getBaseConfig(userData, services),
+      url: prowlarrUrl,
+      apiKey: prowlarrApiKey,
       indexers: Env.BUILTIN_PROWLARR_INDEXERS || [],
-      tmdbAccessToken: userData.tmdbAccessToken,
-      tmdbApiKey: userData.tmdbApiKey,
-      services: services.map((service) => ({
-        id: service,
-        credential: this.getServiceCredential(service, userData),
-      })),
+      tags: typeof options.tags === 'string' ? options.tags.split(',') : [],
     };
 
     const configString = this.base64EncodeJSON(config);

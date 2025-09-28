@@ -5,11 +5,11 @@ import {
   ParsedStream,
   Stream,
   AIOStream,
-} from '../db';
-import { Preset, baseOptions } from './preset';
-import { constants, Env, formatZodError, RESOURCES } from '../utils';
-import { StreamParser } from '../parser';
-import { createLogger } from '../utils';
+} from '../db/index.js';
+import { Preset, baseOptions } from './preset.js';
+import { constants, Env, formatZodError, RESOURCES } from '../utils/index.js';
+import { StreamParser } from '../parser/index.js';
+import { createLogger } from '../utils/index.js';
 
 const logger = createLogger('parser');
 
@@ -117,7 +117,7 @@ export class AIOStreamsPreset extends Preset {
         required: false,
         default: undefined,
         options: RESOURCES.map((resource) => ({
-          label: resource,
+          label: constants.RESOURCE_LABELS[resource],
           value: resource,
         })),
       },

@@ -1,13 +1,17 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Viren070/AIOStreams/main/packages/frontend/public/assets/logo.png" alt="AIOStreams Logo" width="200"/>
+    <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/selfhst/icons/png/aiostreams-light.png">
+          <img alt="AIOStreams Logo" src="https://cdn.jsdelivr.net/gh/selfhst/icons/png/aiostreams.png" width=256 height=256>
+    </picture>
 </p>
+
 
 <h1 align="center">AIOStreams</h1>
 
 <p align="center">
   <strong>One addon to rule them all.</strong>
   <br />
-  AIOStreams consolidates multiple Stremio addons and debrid services into a single, highly customisable super-addon.
+  AIOStreams consolidates multiple Stremio addons and debrid services - including its own suite of built-in addons - into a single, highly customisable super-addon.
 </p>
 
 <p align="center">
@@ -53,6 +57,28 @@ Whether you're a casual user who wants a simple, unified stream list or a power 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/eb47063c-7519-4619-804f-ad84a34d6591" alt="Addon Configuration" width="750"/>
 </p>
+
+### 🧩 Built-in Addons
+Think of "built-in addons" as independent addons bundled exclusively with AIOStreams. When you host AIOStreams, you're also hosting these addons, ready to be added to your configuration just like any other community addon (e.g., Comet, Torrentio).
+
+AIOStreams includes over 10 built-in addons that search various sources and deliver results that can usually be streamed through your debrid service. 
+
+> [!NOTE]
+> At this time, these addons require a debrid service and do not yet support P2P streaming. All built-in addons come with anime support and support Kitsu/MAL catalogs.
+
+The suite of built-in addons includes:
+- **Stremio GDrive**: Connect your Google Drive to Stremio.
+- **TorBox Search**: An alternative to the official TorBox addon with more customisability and support for more debrid services.
+- **Knaben**: Scrapes Knaben, an indexer proxy for several popular torrent sites including The Pirate Bay, 1337x, and Nyaa.si.
+- **Zilean**: Scrapes an instance of Zilean - A DMM hashlist scraper.
+- **AnimeTosho**: Searches AnimeTosho, which mirrors most anime from Nyaa.si and TokyoTosho.
+- **Torrent Galaxy**: Searches Torrent Galaxy for results.
+- **Bitmagnet**: Scrape your self-hosted Bitmagnet instance - a BitTorrent indexer and DHT crawler. Set `BUILTIN_BITMAGNET_URL` for the addon to appear.
+- **Jackett**: Connect and scrape your Jackett instance by providing its URL and API key.
+- **Prowlarr**: Connect and scrape your Prowlarr instance by providing its URL and API key.
+- **NZBHydra**: Stream results from your Usenet indexers with TorBox by connecting your NZBHydra instance.
+- **Newznab**: Directly configure and scrape your Usenet indexers for results with TorBox using a Newznab API.
+- **Torznab**: Configure any Torznab API to scrape torrent results, allowing individual indexers from Jackett to be added separately.
 
 ### 🔬 Advanced Filtering & Sorting Engine
 Because all addons are routed through AIOStreams, you only have to **configure your filters and sorting rules once**. This powerful, centralized engine offers far more options and flexibility than any individual addon.

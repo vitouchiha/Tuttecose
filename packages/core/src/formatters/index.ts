@@ -1,18 +1,19 @@
-export * from './base';
-export * from './predefined';
-export * from './custom';
-export * from './utils';
+export * from './base.js';
+export * from './predefined.js';
+export * from './custom.js';
+export * from './utils.js';
 
-import { BaseFormatter, FormatterConfig } from './base';
+import { BaseFormatter, FormatterConfig } from './base.js';
 import {
   TorrentioFormatter,
   TorboxFormatter,
   GDriveFormatter,
   LightGDriveFormatter,
   MinimalisticGdriveFormatter,
-} from './predefined';
-import { CustomFormatter } from './custom';
-import { UserData } from '../db';
+  PrismFormatter,
+} from './predefined.js';
+import { CustomFormatter } from './custom.js';
+import { UserData } from '../db/schemas.js';
 
 export function createFormatter(userData: UserData): BaseFormatter {
   switch (userData.formatter.id) {
@@ -26,6 +27,8 @@ export function createFormatter(userData: UserData): BaseFormatter {
       return new LightGDriveFormatter(userData);
     case 'minimalisticgdrive':
       return new MinimalisticGdriveFormatter(userData);
+    case 'prism':
+      return new PrismFormatter(userData);
     case 'custom':
       if (!userData.formatter.definition) {
         throw new Error('Definition is required for custom formatter');

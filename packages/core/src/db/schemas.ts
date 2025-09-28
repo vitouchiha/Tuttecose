@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import * as constants from '../utils/constants';
+import * as constants from '../utils/constants.js';
 
 const ServiceIds = z.enum(constants.SERVICES);
 
@@ -115,6 +115,7 @@ const AddonSchema = z.object({
   manifestUrl: z.string().url(),
   enabled: z.boolean(),
   resources: ResourceList.optional(),
+  mediaTypes: z.array(z.enum(constants.TYPES)).optional(),
   name: z.string(),
   identifier: z.string().optional(), // true identifier for generating IDs
   displayIdentifier: z.string().optional(), // identifier for display purposes
@@ -369,6 +370,12 @@ export const UserDataSchema = z.object({
   //     })
   //   )
   //   .optional(),
+  dynamicAddonFetching: z
+    .object({
+      enabled: z.boolean().optional(),
+      condition: z.string().min(1).max(1500).optional(),
+    })
+    .optional(),
   groups: z
     .object({
       enabled: z.boolean().optional(),
@@ -376,7 +383,7 @@ export const UserDataSchema = z.object({
         .array(
           z.object({
             addons: z.array(z.string().min(1)),
-            condition: z.string().min(1).max(200),
+            condition: z.string().min(1).max(1500),
           })
         )
         .optional(),
@@ -410,10 +417,18 @@ export const UserDataSchema = z.object({
   size: SizeFilterOptions.optional(),
   hideErrors: z.boolean().optional(),
   hideErrorsForResources: z.array(ResourceSchema).optional(),
-  showStatistics: z.boolean().optional(),
-  statisticsPosition: z.enum(['top', 'bottom']).optional(),
+  // showStatistics: z.boolean().optional(),
+  // statisticsPosition: z.enum(['top', 'bottom']).optional(),
+  statistics: z
+    .object({
+      enabled: z.boolean().optional(),
+      position: z.enum(['top', 'bottom']).optional(),
+      statsToShow: z.array(z.enum(['addon', 'filter'])).optional(),
+    })
+    .optional(),
   tmdbAccessToken: z.string().optional(),
   tmdbApiKey: z.string().optional(),
+  tvdbApiKey: z.string().optional(),
   yearMatching: z
     .object({
       enabled: z.boolean().optional(),
@@ -910,6 +925,7 @@ const StatusResponseSchema = z.object({
     baseUrl: z.string().url().optional(),
     addonName: z.string(),
     customHtml: z.string().optional(),
+    alternateDesign: z.boolean(),
     protected: z.boolean(),
     regexFilterAccess: z.enum(['none', 'trusted', 'all']),
     allowedRegexPatterns: z

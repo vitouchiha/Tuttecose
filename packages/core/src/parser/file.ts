@@ -1,6 +1,6 @@
-import { PARSE_REGEX } from './regex';
-import { ParsedFile } from '../db/schemas';
-import ptt from './ptt';
+import { PARSE_REGEX } from './regex.js';
+import { ParsedFile } from '../db/schemas.js';
+import ptt from './ptt.js';
 
 function matchPattern(
   filename: string,
@@ -24,7 +24,13 @@ class FileParser {
   static parse(filename: string): ParsedFile {
     const parsed = ptt.parse(filename);
     if (
-      ['vinland'].includes(parsed.title?.toLowerCase() || '') &&
+      ['vinland', 'furiosaamadmax', 'horizonanamerican'].includes(
+        (parsed.title || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^\p{L}\p{N}+]/gu, '')
+          .toLowerCase()
+      ) &&
       parsed.complete
     ) {
       parsed.title += ' Saga';
@@ -48,7 +54,7 @@ class FileParser {
     const getPaddedNumber = (number: number, length: number) =>
       number.toString().padStart(length, '0');
 
-    const releaseGroup = parsed.group;
+    const releaseGroup = filename.match(PARSE_REGEX.releaseGroup)?.[1] ?? parsed.group;
     const title = parsed.title;
     const year = parsed.year ? parsed.year.toString() : undefined;
     const season = parsed.season;

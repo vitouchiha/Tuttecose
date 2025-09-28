@@ -9,7 +9,7 @@ import {
 } from '@aiostreams/core';
 import { Manifest } from '@aiostreams/core';
 import { createLogger } from '@aiostreams/core';
-import { stremioManifestRateLimiter } from '../../middlewares/ratelimit';
+import { stremioManifestRateLimiter } from '../../middlewares/ratelimit.js';
 
 const logger = createLogger('server');
 const router: Router = Router();
@@ -47,12 +47,11 @@ const manifest = async (config?: UserData): Promise<Manifest> => {
         typeof resource === 'string' ? [resource] : resource.types;
       return [...new Set([...types, ...resourceTypes])];
     }, [] as string[]),
-    background:
-      config?.addonBackground ||
-      'https://raw.githubusercontent.com/Viren070/AIOStreams/refs/heads/main/packages/frontend/public/assets/background.png',
     logo:
       config?.addonLogo ||
-      'https://raw.githubusercontent.com/Viren070/AIOStreams/refs/heads/main/packages/frontend/public/assets/logo.png',
+      `https://raw.githubusercontent.com/Viren070/AIOStreams/refs/heads/main/packages/frontend/public/logo${
+        Env.ALTERNATE_DESIGN ? '_alt' : ''
+      }.png`,
     behaviorHints: {
       configurable: true,
       configurationRequired: config ? false : true,

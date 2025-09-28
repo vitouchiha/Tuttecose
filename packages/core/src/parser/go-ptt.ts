@@ -4,15 +4,15 @@ import {
   Cache,
   createLogger,
   Env,
-  getSimpleTextHash,
   getTimeTakenSincePoint,
-} from '../utils';
+} from '../utils/index.js';
+import { normaliseTitle } from './utils.js';
 
 const logger = createLogger('parser');
 
-const parseCache = Cache.getInstance<string, (ParseResult | null)[]>(
-  'parseCache',
-  undefined,
+const parseCache = Cache.getInstance<string, ParseResult | null>(
+  'ptt',
+  10000,
   true
 );
 
@@ -50,44 +50,77 @@ class PTT {
   }
 
   public static async parse(titles: string[]): Promise<(ParseResult | null)[]> {
-    const cacheKey = getSimpleTextHash(titles.join('|'));
-    const cached = await parseCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
     if (!PTT._pttServer) {
       throw new Error('PTT server not running');
     }
     if (titles.length === 0) {
       return [];
     }
-    const parsedTitles: (ParseResult | null)[] = [];
+
     const startTime = Date.now();
-    let results: ParseResult[] = [];
+
+    // Check cache for each normalized title
+    const titlesToProcess: { title: string; index: number }[] = [];
+    const results: (ParseResult | null)[] = new Array(titles.length);
+
+    // First pass - check cache and collect titles that need processing
+    await Promise.all(
+      titles.map(async (title, index) => {
+        const normalizedTitle = normaliseTitle(title);
+        const cached = await parseCache.get(normalizedTitle);
+        if (cached !== undefined) {
+          results[index] = cached;
+        } else {
+          titlesToProcess.push({ title, index });
+        }
+      })
+    );
+
+    // If all titles were cached, return early
+    if (titlesToProcess.length === 0) {
+      return results;
+    }
+
+    // Process uncached titles
     try {
-      results = await PTT._pttServer.parse({
-        torrent_titles: titles,
+      const parseResults = await PTT._pttServer.parse({
+        torrent_titles: titlesToProcess.map((t) => t.title),
         normalize: true,
+      });
+
+      // Store results and cache them
+      parseResults.forEach((result, idx) => {
+        const { title, index } = titlesToProcess[idx];
+        const finalResult = result.err ? null : result;
+        results[index] = finalResult;
+
+        if (result.err) {
+          logger.error(`Error parsing title ${title}: ${result.err}`);
+        }
+
+        // Cache the result
+        parseCache.set(
+          normaliseTitle(title),
+          finalResult,
+          60 * 60 * 24 // 24 hours
+        );
       });
     } catch (error) {
       logger.error(
         `Error calling PTT server: ${error}, ${JSON.stringify((error as any).metadata)}`,
         error
       );
+      // Fill remaining results with null on error
+      titlesToProcess.forEach(({ index }) => {
+        results[index] = null;
+      });
     }
+
     logger.debug(
-      `PTT server parsed ${titles.length} titles in ${getTimeTakenSincePoint(startTime)}`
+      `PTT server parsed ${titlesToProcess.length} titles in ${getTimeTakenSincePoint(startTime)}`
     );
-    titles.forEach((title, idx) => {
-      const result = results[idx];
-      if (result.err) {
-        logger.error(`Error parsing title ${title} (${idx}): ${result.err}`);
-        parsedTitles.push(null);
-      }
-      parsedTitles.push(result);
-    });
-    await parseCache.set(cacheKey, parsedTitles, 60 * 60 * 24);
-    return parsedTitles;
+
+    return results;
   }
 }
 

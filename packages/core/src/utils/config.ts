@@ -6,23 +6,30 @@ import {
   Option,
   StreamProxyConfig,
   Group,
-} from '../db/schemas';
-import { AIOStreams } from '../main';
-import { Preset, PresetManager } from '../presets';
-import { createProxy } from '../proxy';
-import { constants } from '.';
-import { TMDBMetadata } from '../metadata/tmdb';
-import { isEncrypted, decryptString, encryptString } from './crypto';
-import { Env } from './env';
-import { createLogger, maskSensitiveInfo } from './logger';
+} from '../db/schemas.js';
+import { AIOStreams } from '../main.js';
+import { Preset, PresetManager } from '../presets/index.js';
+import { createProxy } from '../proxy/index.js';
+import { TMDBMetadata } from '../metadata/tmdb.js';
+import {
+  isEncrypted,
+  decryptString,
+  encryptString,
+  Env,
+  maskSensitiveInfo,
+  RPDB,
+  FeatureControl,
+  compileRegex,
+  constants,
+} from './index.js';
 import { ZodError } from 'zod';
 import {
+  ExitConditionEvaluator,
   GroupConditionEvaluator,
   StreamSelector,
-} from '../parser/streamExpression';
-import { RPDB } from './rpdb';
-import { FeatureControl } from './feature';
-import { compileRegex } from './regex';
+} from '../parser/streamExpression.js';
+import { createLogger } from './logger.js';
+import { TVDBMetadata } from '../metadata/tvdb.js';
 
 const logger = createLogger('core');
 
@@ -358,6 +365,19 @@ export async function validateConfig(
     }
   }
 
+  if (
+    config.dynamicAddonFetching?.condition &&
+    config.dynamicAddonFetching.enabled
+  ) {
+    try {
+      await ExitConditionEvaluator.testEvaluate(
+        config.dynamicAddonFetching.condition
+      );
+    } catch (error) {
+      throw new Error(`Invalid dynamic addon fetching condition: ${error}`);
+    }
+  }
+
   // validate excluded filter condition
   const streamExpressions = [
     ...(config.excludedStreamExpressions ?? []),
@@ -410,6 +430,20 @@ export async function validateConfig(
         throw new Error(`Invalid TMDB access token: ${error}`);
       }
       logger.warn(`Invalid TMDB access token: ${error}`);
+    }
+  }
+
+  if (config.tvdbApiKey) {
+    try {
+      const tvdb = new TVDBMetadata({
+        apiKey: config.tvdbApiKey,
+      });
+      await tvdb.validateApiKey();
+    } catch (error) {
+      if (!options?.skipErrorsFromAddonsOrProxies) {
+        throw new Error(`Invalid TVDB API key: ${error}`);
+      }
+      logger.warn(`Invalid TVDB API key: ${error}`);
     }
   }
 
@@ -503,6 +537,44 @@ export function applyMigrations(config: any): UserData {
       behaviour: 'parallel',
     };
   }
+
+  if (config.showStatistics || config.statisticsPosition) {
+    config.statistics = {
+      enabled: config.showStatistics ?? false,
+      position: config.statisticsPosition ?? 'bottom',
+      statsToShow: ['addon', 'filter'],
+      ...(config.statistics ?? {}),
+    };
+    delete config.showStatistics;
+    delete config.statisticsPosition;
+  }
+
+  const migrateHOSBS = (
+    type: 'preferred' | 'required' | 'excluded' | 'included'
+  ) => {
+    if (Array.isArray(config[type + 'Encodes'])) {
+      config[type + 'Encodes'] = config[type + 'Encodes'].filter(
+        (encode: string) => {
+          if (encode === 'H-OU' || encode === 'H-SBS') {
+            // add H-OU and H-SBS to visual tags if in encodes.
+            config[type + 'VisualTags'] = [
+              ...(config[type + 'VisualTags'] ?? []),
+              encode,
+            ];
+            // filter out H-OU and H-SBS from encodes
+            return false;
+          }
+          return true;
+        }
+      );
+    }
+  };
+
+  migrateHOSBS('preferred');
+  migrateHOSBS('required');
+  migrateHOSBS('excluded');
+  migrateHOSBS('included');
+
   return config;
 }
 

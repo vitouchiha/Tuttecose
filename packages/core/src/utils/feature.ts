@@ -1,9 +1,9 @@
 import z from 'zod';
-import { UserData } from '../db/schemas';
-import { Env } from './env';
-import { makeRequest } from './http';
-import { createLogger } from './logger';
-import { Cache } from './cache';
+import { UserData } from '../db/schemas.js';
+import { Env } from './env.js';
+import { makeRequest } from './http.js';
+import { createLogger } from './logger.js';
+import { Cache } from './cache.js';
 
 const DEFAULT_REASON = 'Disabled by owner of the instance';
 
@@ -15,56 +15,72 @@ if (Env.REDIS_URI) {
 }
 
 async function fetchPatternsFromUrl(url: string): Promise<string[]> {
-  try {
-    if (remotePatternCache) {
-      await remotePatternCache.waitUntilReady();
-      const cached = await remotePatternCache.get(url);
-      if (cached) {
-        return cached;
+  let patterns: string[] | undefined;
+  for (let i = 0; i < 3; i++) {
+    logger.debug(
+      `Fetching allowed regex patterns from ${url}${i > 0 ? ` (attempt ${i + 1} of 3)` : ''}`
+    );
+    try {
+      if (remotePatternCache) {
+        await remotePatternCache.waitUntilReady();
+        const cached = await remotePatternCache.get(url);
+        if (cached) {
+          patterns = cached;
+          break;
+        }
       }
-    }
-    const response = await makeRequest(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      timeout: 1000,
-    });
-    if (!response.ok) {
-      logger.error(
-        `Failed to fetch allowed regex patterns from ${url}: ${response.status} ${response.statusText}`
-      );
-      return [];
-    }
+      const response = await makeRequest(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 5000,
+      });
+      if (!response.ok) {
+        logger.error(
+          `Failed to fetch allowed regex patterns from ${url}: ${response.status} ${response.statusText}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
 
-    const schema = z.union([
-      z.array(
+      const schema = z.union([
+        z.array(
+          z.object({
+            name: z.string(),
+            pattern: z.string(),
+          })
+        ),
         z.object({
-          name: z.string(),
-          pattern: z.string(),
-        })
-      ),
-      z.object({
-        values: z.array(z.string()),
-      }),
-    ]);
-    const data = await response.json();
-    const parsedData = schema.parse(data);
-    const patterns = Array.isArray(parsedData)
-      ? parsedData.map((item) => item.pattern)
-      : parsedData.values;
-    if (remotePatternCache) {
-      await remotePatternCache.set(
-        url,
-        patterns,
-        Math.floor(Env.ALLOWED_REGEX_PATTERNS_URLS_REFRESH_INTERVAL / 1000)
-      );
+          values: z.array(z.string()),
+        }),
+      ]);
+      const data = await response.json();
+      const parsedData = schema.parse(data);
+      patterns = Array.isArray(parsedData)
+        ? parsedData.map((item) => item.pattern)
+        : parsedData.values;
+      if (remotePatternCache) {
+        await remotePatternCache.set(
+          url,
+          patterns,
+          Math.floor(Env.ALLOWED_REGEX_PATTERNS_URLS_REFRESH_INTERVAL / 1000)
+        );
+      }
+      break;
+    } catch (error) {
+      logger.error(`Error fetching or parsing patterns from ${url}:`, error);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      continue;
     }
-    return patterns;
-  } catch (error) {
-    logger.error(`Error fetching or parsing patterns from ${url}:`, error);
+  }
+  if (!patterns) {
+    logger.error(
+      `Exhausted all attempts to fetch patterns from ${url}, will retry on next interval`
+    );
     return [];
   }
+  return patterns;
 }
 
 export class FeatureControl {

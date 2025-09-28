@@ -1,13 +1,14 @@
 import { z } from 'zod';
-import { ParsedId } from '../../../utils/id-parser';
-import { getTimeTakenSincePoint } from '../../../utils';
+import { ParsedId } from '../../../utils/id-parser.js';
+import { Env, getTimeTakenSincePoint } from '../../../utils/index.js';
 import { Logger } from 'winston';
 import {
   BaseDebridAddon,
   BaseDebridConfigSchema,
   SearchMetadata,
-} from '../debrid';
-import { BaseNabApi, Capabilities, SearchResultItem } from './api';
+} from '../debrid.js';
+import { BaseNabApi, Capabilities, SearchResultItem } from './api.js';
+import { createQueryLimit, useAllTitles } from '../../utils/general.js';
 
 export const NabAddonConfigSchema = BaseDebridConfigSchema.extend({
   url: z.string(),
@@ -29,6 +30,7 @@ export abstract class BaseNabAddon<
   ): Promise<SearchResultItem<A['namespace']>[]> {
     const start = Date.now();
     const queryParams: Record<string, string> = {};
+    const queryLimit = createQueryLimit();
     let capabilities: Capabilities;
     try {
       capabilities = await this.api.getCapabilities();
@@ -59,6 +61,13 @@ export abstract class BaseNabAddon<
 
     if (this.userData.forceQuerySearch) {
     } else if (
+      // prefer tvdb ID over imdb ID for series
+      parsedId.mediaType === 'series' &&
+      searchCapabilities.supportedParams.includes('tvdbid') &&
+      metadata.tvdbId
+    ) {
+      queryParams.tvdbid = metadata.tvdbId.toString();
+    } else if (
       searchCapabilities.supportedParams.includes('imdbid') &&
       metadata.imdbId
     )
@@ -67,12 +76,12 @@ export abstract class BaseNabAddon<
       searchCapabilities.supportedParams.includes('tmdbid') &&
       metadata.tmdbId
     )
-      queryParams.tmdbid = metadata.tmdbId;
+      queryParams.tmdbid = metadata.tmdbId.toString();
     else if (
       searchCapabilities.supportedParams.includes('tvdbid') &&
       metadata.tvdbId
     )
-      queryParams.tvdbid = metadata.tvdbId;
+      queryParams.tvdbid = metadata.tvdbId.toString();
 
     if (
       !this.userData.forceQuerySearch &&
@@ -102,35 +111,19 @@ export abstract class BaseNabAddon<
       searchCapabilities.supportedParams.includes('q') &&
       metadata.primaryTitle
     ) {
-      queries.push(metadata.primaryTitle);
-      if (
-        parsedId.season &&
-        parsedId.episode &&
-        !queryParams.season &&
-        !queryParams.ep
-      ) {
-        queries = [
-          `${metadata.primaryTitle} S${parsedId.season.toString().padStart(2, '0')}`,
-          `${metadata.primaryTitle} S${parsedId.season.toString().padStart(2, '0')}E${parsedId.episode.toString().padStart(2, '0')}`,
-        ];
-        if (metadata.absoluteEpisode)
-          queries.push(
-            `${metadata.primaryTitle} ${metadata.absoluteEpisode.toString().padStart(2, '0')}`
-          );
-      }
-      if (
-        metadata.year &&
-        parsedId.mediaType === 'movie' &&
-        !queryParams.year
-      ) {
-        queries = queries.map((q) => `${q} ${metadata.year}`);
-      }
+      queries = this.buildQueries(parsedId, metadata, {
+        // add year if it is not already in the query params
+        addYear: !queryParams.year,
+        // add season and episode if they are not already in the query params
+        addSeasonEpisode: !queryParams.season && !queryParams.ep,
+        useAllTitles: useAllTitles(this.userData.url),
+      });
     }
     let results: SearchResultItem<A['namespace']>[] = [];
     if (queries.length > 0) {
       this.logger.debug('Performing queries', { queries });
       const searchPromises = queries.map((q) =>
-        this.api.search(searchFunction, { ...queryParams, q })
+        queryLimit(() => this.api.search(searchFunction, { ...queryParams, q }))
       );
       const allResults = await Promise.all(searchPromises);
       results = allResults.flat() as SearchResultItem<A['namespace']>[];
@@ -157,7 +150,9 @@ export abstract class BaseNabAddon<
     this.logger.debug(
       `Available search functions: ${JSON.stringify(available)}`
     );
-    if (type === 'movie') {
+    if (this.userData.forceQuerySearch) {
+      // dont use specific search functions when force query search is enabled
+    } else if (type === 'movie') {
       const movieSearch = available.find((s) =>
         s.toLowerCase().includes('movie')
       );

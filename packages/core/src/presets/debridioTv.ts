@@ -5,15 +5,15 @@ import {
   ParsedStream,
   Stream,
   UserData,
-} from '../db';
-import { CacheKeyRequestOptions, Preset, baseOptions } from './preset';
-import { constants, Env } from '../utils';
+} from '../db/index.js';
+import { CacheKeyRequestOptions, Preset, baseOptions } from './preset.js';
+import { constants, Env } from '../utils/index.js';
 import {
   debridioSocialOption,
   debridioApiKeyOption,
   debridioLogo,
-} from './debridio';
-import { FileParser, StreamParser } from '../parser';
+} from './debridio.js';
+import { FileParser, StreamParser } from '../parser/index.js';
 
 class DebridioTvStreamParser extends StreamParser {
   protected override getParsedFile(
@@ -65,50 +65,22 @@ export class DebridioTvPreset extends Preset {
     ];
 
     const channels = [
-      {
-        label: 'USA',
-        value: 'usa',
-      },
-      {
-        label: 'Canada',
-        value: 'ca',
-      },
-      {
-        label: 'Mexico',
-        value: 'mx',
-      },
-      {
-        label: 'United Kingdom',
-        value: 'uk',
-      },
-      {
-        label: 'Australia',
-        value: 'au',
-      },
-      {
-        label: 'Chile',
-        value: 'cl',
-      },
-      {
-        label: 'France',
-        value: 'fr',
-      },
-      {
-        label: 'Italy',
-        value: 'it',
-      },
-      {
-        label: 'South Africa',
-        value: 'za',
-      },
-      {
-        label: 'New Zealand',
-        value: 'nz',
-      },
-      {
-        label: 'Estonia',
-        value: 'ee',
-      },
+      { value: 'au', label: 'Australia' },
+      { value: 'br', label: 'Brasil' },
+      { value: 'ca', label: 'Canada' },
+      { value: 'cl', label: 'Chile' },
+      { value: 'es', label: 'Spain' },
+      { value: 'events', label: 'Live Events' },
+      { value: 'fr', label: 'France' },
+      { value: 'it', label: 'Italy' },
+      { value: 'in', label: 'India' },
+      { value: 'mx', label: 'Mexico' },
+      { value: 'nz', label: 'New Zealand' },
+      { value: 'uk', label: 'United Kingdom' },
+      { value: 'usa_locals', label: 'United States Local' },
+      { value: 'usa', label: 'United States' },
+      { value: 'za', label: 'South Africa' },
+      { value: 'search', label: 'Enable Searching' },
     ];
     const options: Option[] = [
       ...baseOptions(

@@ -1,6 +1,6 @@
-import { Manifest, Meta, Stream } from '../../db/schemas';
+import { Manifest, Meta, Stream } from '../../db/schemas.js';
 import { z, ZodError } from 'zod';
-import { IdParser, IdType, ParsedId } from '../../utils/id-parser';
+import { IdParser, IdType, ParsedId } from '../../utils/id-parser.js';
 import {
   AnimeDatabase,
   constants,
@@ -8,8 +8,8 @@ import {
   formatZodError,
   getTimeTakenSincePoint,
   SERVICE_DETAILS,
-} from '../../utils';
-import { TorrentClient } from '../../utils/torrent';
+} from '../../utils/index.js';
+import { TorrentClient } from '../../utils/torrent.js';
 import {
   BuiltinDebridServices,
   PlaybackInfo,
@@ -20,25 +20,29 @@ import {
   UnprocessedTorrent,
   ServiceAuth,
   DebridError,
-} from '../../debrid';
-import { processTorrents, processNZBs } from '../utils/debrid';
-import { calculateAbsoluteEpisode } from '../utils/general';
-import { TitleMetadata } from '../torbox-search/source-handlers';
-import { MetadataService } from '../../metadata/service';
+} from '../../debrid/index.js';
+import { processTorrents, processNZBs } from '../utils/debrid.js';
+import { calculateAbsoluteEpisode } from '../utils/general.js';
+import { TitleMetadata } from '../torbox-search/source-handlers.js';
+import { MetadataService } from '../../metadata/service.js';
 import { Logger } from 'winston';
+import pLimit from 'p-limit';
+import { cleanTitle } from '../../parser/utils.js';
 
 export interface SearchMetadata extends TitleMetadata {
   primaryTitle?: string;
   year?: number;
   imdbId?: string | null;
-  tmdbId?: string | null;
-  tvdbId?: string | null;
+  tmdbId?: number | null;
+  tvdbId?: number | null;
+  isAnime?: boolean;
 }
 
 export const BaseDebridConfigSchema = z.object({
   services: BuiltinDebridServices,
   tmdbApiKey: z.string().optional(),
   tmdbReadAccessToken: z.string().optional(),
+  tvdbApiKey: z.string().optional(),
 });
 export type BaseDebridConfig = z.infer<typeof BaseDebridConfigSchema>;
 
@@ -111,6 +115,12 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
     let searchMetadata: SearchMetadata;
     try {
       searchMetadata = await this._getSearchMetadata(parsedId, type);
+      if (searchMetadata.primaryTitle) {
+        searchMetadata.primaryTitle = cleanTitle(searchMetadata.primaryTitle);
+        this.logger.debug(
+          `Cleaned primary title for ${id}: ${searchMetadata.primaryTitle}`
+        );
+      }
     } catch (error) {
       this.logger.error(`Failed to get search metadata for ${id}: ${error}`);
       return [
@@ -149,38 +159,39 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
       );
     }
 
-    if (torrentResults.some((t) => !t.hash && t.downloadUrl)) {
-      // Process torrents in batches of 5 to avoid overwhelming the system
-      const BATCH_SIZE = 15;
-      const enrichedResults: Torrent[] = [];
-      const torrentsToProcess = [...torrentResults];
-
-      while (torrentsToProcess.length > 0) {
-        const batch = torrentsToProcess.splice(0, BATCH_SIZE);
-        const metadataPromises = batch.map(async (torrent) => {
-          try {
-            const metadata = await TorrentClient.getMetadata(torrent);
-            if (!metadata) {
-              return torrent.hash ? (torrent as Torrent) : null;
-            }
-            return {
-              ...torrent,
-              hash: metadata.hash,
-              sources: metadata.sources,
-              files: metadata.files,
-            } as Torrent;
-          } catch (error) {
-            this.logger.error(`Failed to fetch metadata for torrent: ${error}`);
+    const torrentsToDownload = torrentResults.filter(
+      (t) => !t.hash && t.downloadUrl
+    );
+    torrentResults = torrentResults.filter((t) => t.hash);
+    if (torrentsToDownload.length > 0) {
+      this.logger.info(
+        `Fetching metadata for ${torrentsToDownload.length} torrents`
+      );
+      const start = Date.now();
+      const metadataPromises = torrentsToDownload.map(async (torrent) => {
+        try {
+          const metadata = await TorrentClient.getMetadata(torrent);
+          if (!metadata) {
             return torrent.hash ? (torrent as Torrent) : null;
           }
-        });
+          return {
+            ...torrent,
+            hash: metadata.hash,
+            sources: metadata.sources,
+            files: metadata.files,
+          } as Torrent;
+        } catch (error) {
+          return torrent.hash ? (torrent as Torrent) : null;
+        }
+      });
 
-        const batchResults = await Promise.all(metadataPromises);
-        enrichedResults.push(
-          ...batchResults.filter((r): r is Torrent => r !== null)
-        );
-      }
-      torrentResults = enrichedResults;
+      const enrichedResults = (await Promise.all(metadataPromises)).filter(
+        (r): r is Torrent => r !== null
+      );
+      this.logger.info(
+        `Got info for ${enrichedResults.length} torrents in ${getTimeTakenSincePoint(start)}`
+      );
+      torrentResults = [...torrentResults, ...enrichedResults];
     }
 
     const [processedTorrents, processedNzbs] = await Promise.all([
@@ -227,6 +238,65 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
     return [...resultStreams, ...searchErrors, ...processingErrors];
   }
 
+  protected buildQueries(
+    parsedId: ParsedId,
+    metadata: SearchMetadata,
+    options?: {
+      addYear?: boolean;
+      addSeasonEpisode?: boolean;
+      useAllTitles?: boolean;
+    }
+  ): string[] {
+    const { addYear, addSeasonEpisode, useAllTitles } = {
+      addYear: true,
+      addSeasonEpisode: true,
+      useAllTitles: false,
+      ...options,
+    };
+    let queries: string[] = [];
+    if (!metadata.primaryTitle) {
+      return [];
+    }
+    const titles = useAllTitles
+      ? metadata.titles.slice(0, Env.BUILTIN_SCRAPE_TITLE_LIMIT).map(cleanTitle)
+      : [metadata.primaryTitle];
+    const titlePlaceholder = '<___title___>';
+    const addQuery = (query: string) => {
+      titles.forEach((title) => {
+        queries.push(query.replace(titlePlaceholder, title));
+      });
+    };
+    if (parsedId.mediaType === 'movie' || !addSeasonEpisode) {
+      addQuery(
+        `${titlePlaceholder}${metadata.year && addYear ? ` ${metadata.year}` : ''}`
+      );
+    } else {
+      if (
+        parsedId.season &&
+        (parsedId.episode ? Number(parsedId.episode) < 100 : true)
+      ) {
+        addQuery(
+          `${titlePlaceholder} S${parsedId.season!.toString().padStart(2, '0')}`
+        );
+      }
+      if (metadata.absoluteEpisode) {
+        addQuery(
+          `${titlePlaceholder} ${metadata.absoluteEpisode!.toString().padStart(2, '0')}`
+        );
+      } else if (parsedId.episode && !parsedId.season) {
+        addQuery(
+          `${titlePlaceholder} E${parsedId.episode!.toString().padStart(2, '0')}`
+        );
+      }
+      if (parsedId.season && parsedId.episode) {
+        addQuery(
+          `${titlePlaceholder} S${parsedId.season!.toString().padStart(2, '0')}E${parsedId.episode!.toString().padStart(2, '0')}`
+        );
+      }
+    }
+    return queries;
+  }
+
   protected abstract _searchTorrents(
     parsedId: ParsedId,
     metadata: SearchMetadata
@@ -252,11 +322,24 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
       parsedId.season =
         animeEntry.imdb?.fromImdbSeason?.toString() ??
         animeEntry.trakt?.season?.number?.toString();
+      if (
+        animeEntry.imdb?.fromImdbEpisode &&
+        animeEntry.imdb?.fromImdbEpisode !== 1 &&
+        parsedId.episode &&
+        ['malId', 'kitsuId'].includes(parsedId.type)
+      ) {
+        parsedId.episode = (
+          animeEntry.imdb.fromImdbEpisode +
+          Number(parsedId.episode) -
+          1
+        ).toString();
+      }
     }
 
     const metadata = await new MetadataService({
       tmdbAccessToken: this.userData.tmdbReadAccessToken,
       tmdbApiKey: this.userData.tmdbApiKey,
+      tvdbApiKey: this.userData.tvdbApiKey,
     }).getMetadata(parsedId, type === 'movie' ? 'movie' : 'series');
 
     // Calculate absolute episode if needed
@@ -271,24 +354,39 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
       this.logger.debug(
         `Calculating absolute episode with current season and episode: ${parsedId.season}, ${parsedId.episode} and seasons: ${JSON.stringify(seasons)}`
       );
+      // Calculate base absolute episode
       absoluteEpisode = Number(
         calculateAbsoluteEpisode(parsedId.season, parsedId.episode, seasons)
       );
+
+      // Adjust for non-IMDB episodes if they exist
+      if (
+        animeEntry?.imdb?.nonImdbEpisodes &&
+        absoluteEpisode &&
+        parsedId.type === 'imdbId'
+      ) {
+        const nonImdbEpisodesBefore = animeEntry.imdb.nonImdbEpisodes.filter(
+          (ep) => ep < absoluteEpisode!
+        ).length;
+        if (nonImdbEpisodesBefore > 0) {
+          absoluteEpisode += nonImdbEpisodesBefore;
+        }
+      }
     }
 
-    // Map IDs
+    // // Map IDs
     const imdbId =
       parsedId.type === 'imdbId'
         ? parsedId.value.toString()
-        : (animeEntry?.mappings?.imdbId?.toString() ?? null);
-    const tmdbId =
-      parsedId.type === 'themoviedbId'
-        ? parsedId.value.toString()
-        : (animeEntry?.mappings?.themoviedbId?.toString() ?? null);
-    const tvdbId =
-      parsedId.type === 'thetvdbId'
-        ? parsedId.value.toString()
-        : (animeEntry?.mappings?.thetvdbId?.toString() ?? null);
+        : animeEntry?.mappings?.imdbId?.toString();
+    // const tmdbId =
+    //   parsedId.type === 'themoviedbId'
+    //     ? parsedId.value.toString()
+    //     : (animeEntry?.mappings?.themoviedbId?.toString() ?? null);
+    // const tvdbId =
+    //   parsedId.type === 'thetvdbId'
+    //     ? parsedId.value.toString()
+    //     : (animeEntry?.mappings?.thetvdbId?.toString() ?? null);
 
     const searchMetadata: SearchMetadata = {
       primaryTitle: metadata.title,
@@ -298,8 +396,9 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
       absoluteEpisode,
       year: metadata.year,
       imdbId,
-      tmdbId,
-      tvdbId,
+      tmdbId: metadata.tmdbId ?? null,
+      tvdbId: metadata.tvdbId ?? null,
+      isAnime: animeEntry ? true : false,
     };
 
     this.logger.debug(

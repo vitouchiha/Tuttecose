@@ -429,7 +429,7 @@ function Content() {
             {userData.presets.length > 0 && <CatalogSettingsCard />}
 
             {userData.presets.length > 0 && mode === 'pro' && (
-              <AddonGroupCard />
+              <AddonFetchingBehaviorCard />
             )}
           </PageWrapper>
         )}
@@ -1186,8 +1186,13 @@ function AddonFilterPopover({
   );
 }
 
-function AddonGroupCard() {
+function AddonFetchingBehaviorCard() {
   const { userData, setUserData } = useUserData();
+  const [mode, setMode] = useState(() => {
+    if (userData.dynamicAddonFetching?.enabled) return 'dynamic';
+    if (userData.groups?.enabled) return 'groups';
+    return 'default';
+  });
 
   // Helper function to get presets that are not in any group except the current one
   const getAvailablePresets = (currentGroupIndex: number) => {
@@ -1213,23 +1218,15 @@ function AddonGroupCard() {
     updates: Partial<{ addons: string[]; condition: string }>
   ) => {
     setUserData((prev) => {
-      // Initialize groups array if it doesn't exist
       const currentGroups = prev.groups?.groupings || [];
-
-      // Create a new array with all existing groups
       const newGroups = [...currentGroups];
-
-      // Update the specific group with new values, preserving other fields
       newGroups[index] = {
         ...newGroups[index],
         ...updates,
       };
-
       if (index === 0) {
-        // set condition for first group to true
         newGroups[index].condition = 'true';
       }
-
       return {
         ...prev,
         groups: {
@@ -1240,131 +1237,164 @@ function AddonGroupCard() {
     });
   };
 
+  const handleModeChange = (newMode: string) => {
+    setMode(newMode);
+    setUserData((prev) => ({
+      ...prev,
+      groups: {
+        ...prev.groups,
+        enabled: newMode === 'groups',
+      },
+      dynamicAddonFetching: {
+        ...prev.dynamicAddonFetching,
+        enabled: newMode === 'dynamic',
+      },
+    }));
+  };
+
+  const descriptions = {
+    default:
+      'Fetch from all addons simultaneously and wait for all addons to finish fetching before returning results.',
+    groups:
+      'Organize addons into groups. Streams are fetched based on group conditions, either sequentially or in parallel.',
+    dynamic:
+      'Fetch from all addons at once, and exit once a specified condition is met.',
+  };
+
   return (
     <SettingsCard
-      title="Groups"
-      //       description="Optionally assign your addons to groups. Streams are only fetched from your first group initially,
-      // and only if a certain condition is met, will streams be fetched from the next group, and so on. Leaving this blank will mean streams are
-      // fetched from all addons. For a guide and a reference to the group system,"
+      title="Addon Fetching Strategy"
+      description="Choose how streams are fetched from your addons"
     >
-      <div className="text-sm text-[--muted] mb-2">
-        Optionally assign your addons to groups. Streams are only fetched from
-        your first group initially, and only if a certain condition is met, will
-        streams be fetched from the next group, and so on. Leaving this blank
-        will mean streams are fetched from all addons. Check the{' '}
-        <a
-          href="https://github.com/Viren070/AIOStreams/wiki/Groups"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[--brand] hover:text-[--brand]/80 hover:underline"
-        >
-          wiki
-        </a>{' '}
-        for a detailed guide to using groups.
-      </div>
-      <Switch
-        label="Enable"
-        value={userData.groups?.enabled ?? false}
-        onValueChange={(value) => {
-          setUserData((prev) => ({
-            ...prev,
-            groups: { ...prev.groups, enabled: value },
-          }));
-        }}
-        side="right"
-      />
       <Select
-        label="Behaviour"
-        value={userData.groups?.behaviour ?? 'parallel'}
-        onValueChange={(value) => {
-          setUserData((prev) => ({
-            ...prev,
-            groups: {
-              ...prev.groups,
-              behaviour: value as 'sequential' | 'parallel',
-            },
-          }));
-        }}
+        label="Strategy"
+        value={mode}
+        onValueChange={handleModeChange}
         options={[
-          { label: 'Parallel', value: 'parallel' },
-          { label: 'Sequential', value: 'sequential' },
+          { label: 'Default', value: 'default' },
+          { label: 'Groups', value: 'groups' },
+          { label: 'Dynamic', value: 'dynamic' },
         ]}
-        disabled={userData.groups?.enabled === false}
-        help={
-          userData.groups?.behaviour === 'sequential'
-            ? 'Streams are fetched from the first group only to begin with. If the condition for the next group is met, streams are fetched from the next group, and so on.'
-            : 'Streams are fetched from all groups at the same time. When a condition is not met, results from its group onwards are simply not shown.'
-        }
       />
-      {(userData.groups?.groupings || []).map((group, index) => (
-        <div key={index} className="flex gap-2">
-          <div className="flex-1 flex gap-2">
-            <div className="flex-1">
-              <Combobox
-                multiple
-                disabled={userData.groups?.enabled === false}
-                value={group.addons}
-                options={getAvailablePresets(index)}
-                emptyMessage="You haven't installed any addons yet or they are already in a group"
-                label="Addons"
-                placeholder="Select addons"
-                onValueChange={(value) => {
-                  updateGroup(index, { addons: value });
-                }}
-              />
-            </div>
-            <div className="flex-1">
-              <TextInput
-                value={index === 0 ? 'true' : group.condition}
-                disabled={index === 0 || userData.groups?.enabled === false}
-                label="Condition"
-                placeholder="Enter condition"
-                onValueChange={(value) => {
-                  updateGroup(index, { condition: value });
-                }}
-              />
-            </div>
-          </div>
-          <IconButton
-            size="sm"
-            rounded
-            disabled={userData.groups?.enabled === false}
-            icon={<FaRegTrashAlt />}
-            intent="alert-subtle"
-            onClick={() => {
-              setUserData((prev) => {
-                const newGroups = [...(prev.groups?.groupings || [])];
-                newGroups.splice(index, 1);
-                return {
-                  ...prev,
-                  groups: { ...prev.groups, groupings: newGroups },
-                };
-              });
-            }}
-          />
-        </div>
-      ))}
-      <div className="mt-2 flex gap-2 items-center">
-        <IconButton
-          rounded
-          size="sm"
-          intent="primary-subtle"
-          icon={<FaPlus />}
-          disabled={userData.groups?.enabled === false}
-          onClick={() => {
-            setUserData((prev) => {
-              const currentGroups = prev.groups?.groupings || [];
-              return {
+
+      <div className="text-sm text-[--muted] mt-2 mb-4">
+        {descriptions[mode as keyof typeof descriptions]}
+      </div>
+
+      {mode === 'groups' && (
+        <>
+          <Select
+            label="Group Behaviour"
+            value={userData.groups?.behaviour ?? 'parallel'}
+            onValueChange={(value) => {
+              setUserData((prev) => ({
                 ...prev,
                 groups: {
                   ...prev.groups,
-                  groupings: [...currentGroups, { addons: [], condition: '' }],
+                  behaviour: value as 'sequential' | 'parallel',
                 },
-              };
-            });
+              }));
+            }}
+            options={[
+              { label: 'Parallel', value: 'parallel' },
+              { label: 'Sequential', value: 'sequential' },
+            ]}
+            help={
+              userData.groups?.behaviour === 'sequential'
+                ? 'Streams are fetched from the first group only to begin with. If the condition for the next group is met, streams are fetched from the next group, and so on.'
+                : 'Streams are fetched from all groups at the same time. When a condition is not met, results from its group onwards are simply not shown.'
+            }
+          />
+
+          {(userData.groups?.groupings || []).map((group, index) => (
+            <div key={index} className="flex gap-2">
+              <div className="flex-1 flex gap-2">
+                <div className="flex-1">
+                  <Combobox
+                    multiple
+                    value={group.addons}
+                    options={getAvailablePresets(index)}
+                    emptyMessage="You haven't installed any addons yet or they are already in a group"
+                    label="Addons"
+                    placeholder="Select addons"
+                    onValueChange={(value) => {
+                      updateGroup(index, { addons: value });
+                    }}
+                  />
+                </div>
+                <div className="flex-1">
+                  <TextInput
+                    value={index === 0 ? 'true' : group.condition}
+                    disabled={index === 0}
+                    label="Condition"
+                    placeholder="Enter condition"
+                    onValueChange={(value) => {
+                      updateGroup(index, { condition: value });
+                    }}
+                  />
+                </div>
+              </div>
+              <IconButton
+                size="sm"
+                rounded
+                icon={<FaRegTrashAlt />}
+                intent="alert-subtle"
+                onClick={() => {
+                  setUserData((prev) => {
+                    const newGroups = [...(prev.groups?.groupings || [])];
+                    newGroups.splice(index, 1);
+                    return {
+                      ...prev,
+                      groups: { ...prev.groups, groupings: newGroups },
+                    };
+                  });
+                }}
+              />
+            </div>
+          ))}
+
+          <div className="mt-2 flex gap-2 items-center">
+            <IconButton
+              rounded
+              size="sm"
+              intent="primary-subtle"
+              icon={<FaPlus />}
+              onClick={() => {
+                setUserData((prev) => {
+                  const currentGroups = prev.groups?.groupings || [];
+                  return {
+                    ...prev,
+                    groups: {
+                      ...prev.groups,
+                      groupings: [
+                        ...currentGroups,
+                        { addons: [], condition: '' },
+                      ],
+                    },
+                  };
+                });
+              }}
+            />
+          </div>
+        </>
+      )}
+
+      {mode === 'dynamic' && (
+        <TextInput
+          label="Exit Condition"
+          value={userData.dynamicAddonFetching?.condition ?? ''}
+          onValueChange={(value) => {
+            setUserData((prev) => ({
+              ...prev,
+              dynamicAddonFetching: {
+                ...prev.dynamicAddonFetching,
+                condition: value,
+              },
+            }));
           }}
+          help="When this condition is met, no more addons will be fetched from"
         />
-      </div>
+      )}
     </SettingsCard>
   );
 }

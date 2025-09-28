@@ -1,16 +1,10 @@
-// utility function for debrid-based builtins
-
-import z from 'zod';
 import {
   BuiltinServiceId,
-  constants,
   createLogger,
   getTimeTakenSincePoint,
-} from '../../utils';
+} from '../../utils/index.js';
 import {
   BuiltinDebridServices,
-  DebridDownload,
-  DebridError,
   DebridFile,
   getDebridService,
   selectFileInTorrentOrNZB,
@@ -20,8 +14,9 @@ import {
   NZB,
   isSeasonWrong,
   isEpisodeWrong,
-} from '../../debrid';
-import { PTT } from '../../parser';
+  isTitleWrong,
+} from '../../debrid/index.js';
+import { PTT } from '../../parser/index.js';
 import { ParseResult } from 'go-ptt';
 
 // we have a list of torrents which need to be
@@ -38,6 +33,12 @@ interface Metadata {
   season?: number;
   episode?: number;
   absoluteEpisode?: number;
+}
+
+export function validateInfoHash(
+  infoHash: string | undefined
+): string | undefined {
+  return infoHash && /^[a-f0-9]{40}$/i.test(infoHash) ? infoHash : undefined;
 }
 
 export function extractTrackersFromMagnet(magnet: string): string[] {
@@ -157,6 +158,9 @@ async function processTorrentsForDebridService(
 
     const parsedTorrent = parsedFiles.get(torrent.title ?? '');
     if (metadata && parsedTorrent) {
+      if (isTitleWrong(parsedTorrent, metadata)) {
+        continue;
+      }
       if (isSeasonWrong(parsedTorrent, metadata)) {
         continue;
       }
@@ -329,8 +333,11 @@ async function processNZBsForDebridService(
 
   const allStrings: string[] = [];
 
+  for (const nzb of nzbs) {
+    allStrings.push(nzb.title ?? '');
+  }
+
   for (const nzb of nzbCheckResults) {
-    allStrings.push(nzb.name ?? '');
     if (nzb.files && Array.isArray(nzb.files)) {
       for (const file of nzb.files) {
         allStrings.push(file.name ?? '');

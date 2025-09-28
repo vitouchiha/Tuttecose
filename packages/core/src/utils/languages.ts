@@ -1181,7 +1181,7 @@ export const FULL_LANGUAGE_MAPPING = [
     iso_639_2: 'ron',
     iso_3166_1: 'RO',
     flag: '🇷🇴',
-    english_name: 'Romanian; Moldavian; Moldovan',
+    english_name: 'Romanian',
     name: 'Română',
   },
   {

@@ -1,18 +1,23 @@
 import { TorboxApi } from '@torbox/torbox-api';
-import { Env, ServiceId, createLogger, getSimpleTextHash } from '../utils';
-import { PTT } from '../parser';
-import { selectFileInTorrentOrNZB } from './utils';
+import { StremThruError } from 'stremthru';
+import { ParseResult } from 'go-ptt';
+import {
+  Env,
+  ServiceId,
+  createLogger,
+  getSimpleTextHash,
+  Cache,
+} from '../utils/index.js';
+import { PTT } from '../parser/index.js';
+import { selectFileInTorrentOrNZB } from './utils.js';
 import {
   DebridService,
   DebridServiceConfig,
   DebridDownload,
   PlaybackInfo,
   DebridError,
-} from './base';
-import { Cache } from '../utils';
-import { StremThruInterface } from './stremthru';
-import { StremThruError } from 'stremthru';
-import { ParseResult } from 'go-ptt';
+} from './base.js';
+import { StremThruInterface } from './stremthru.js';
 
 const logger = createLogger('debrid:torbox');
 
@@ -20,7 +25,7 @@ export class TorboxDebridService implements DebridService {
   private readonly apiVersion = 'v1';
   private readonly torboxApi: TorboxApi;
   private readonly stremthru: StremThruInterface;
-  private static playbackLinkCache = Cache.getInstance<string, string>(
+  private static playbackLinkCache = Cache.getInstance<string, string | null>(
     'tb:link'
   );
   private static instantAvailabilityCache = Cache.getInstance<
@@ -346,9 +351,9 @@ export class TorboxDebridService implements DebridService {
     const cachedLink =
       await TorboxDebridService.playbackLinkCache.get(cacheKey);
 
-    if (cachedLink) {
+    if (cachedLink !== undefined) {
       logger.debug(`Using cached link for ${nzb}`);
-      return cachedLink;
+      return cachedLink ?? undefined;
     }
 
     logger.debug(`Adding usenet download for ${nzb}`, {
@@ -363,6 +368,8 @@ export class TorboxDebridService implements DebridService {
     });
 
     if (usenetDownload.status !== 'downloaded') {
+      // temporarily cache the null value for 1m
+      TorboxDebridService.playbackLinkCache.set(cacheKey, null, 60);
       return undefined;
     }
 

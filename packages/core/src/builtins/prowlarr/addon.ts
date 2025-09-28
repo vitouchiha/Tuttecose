@@ -1,23 +1,31 @@
-import { BaseDebridAddon, BaseDebridConfigSchema } from '../base/debrid';
+import { BaseDebridAddon, BaseDebridConfigSchema } from '../base/debrid.js';
 import { z } from 'zod';
-import { createLogger, Env, getTimeTakenSincePoint } from '../../utils';
+import {
+  createLogger,
+  Env,
+  getTimeTakenSincePoint,
+} from '../../utils/index.js';
 import ProwlarrApi, {
   ProwlarrApiIndexer,
   ProwlarrApiSearchItem,
   ProwlarrApiError,
-} from './api';
-import { ParsedId } from '../../utils/id-parser';
-import { SearchMetadata } from '../base/debrid';
-import { Torrent, NZB, UnprocessedTorrent } from '../../debrid';
+  ProwlarrApiTagItem,
+} from './api.js';
+import { ParsedId } from '../../utils/id-parser.js';
+import { SearchMetadata } from '../base/debrid.js';
+import { Torrent, NZB, UnprocessedTorrent } from '../../debrid/index.js';
 import {
   extractInfoHashFromMagnet,
   extractTrackersFromMagnet,
-} from '../utils/debrid';
+  validateInfoHash,
+} from '../utils/debrid.js';
+import { createQueryLimit, useAllTitles } from '../utils/general.js';
 
 export const ProwlarrAddonConfigSchema = BaseDebridConfigSchema.extend({
   url: z.string(),
   apiKey: z.string(),
   indexers: z.array(z.string()),
+  tags: z.array(z.string()),
 });
 
 export type ProwlarrAddonConfig = z.infer<typeof ProwlarrAddonConfigSchema>;
@@ -32,10 +40,11 @@ export class ProwlarrAddon extends BaseDebridAddon<ProwlarrAddonConfig> {
   readonly api: ProwlarrApi;
 
   private readonly indexers: string[] = [];
-
+  private readonly tags: string[] = [];
   constructor(config: ProwlarrAddonConfig, clientIp?: string) {
     super(config, ProwlarrAddonConfigSchema, clientIp);
     this.indexers = config.indexers.map((x) => x.toLowerCase());
+    this.tags = config.tags.map((x) => x.toLowerCase());
     this.api = new ProwlarrApi({
       baseUrl: config.url,
       apiKey: config.apiKey,
@@ -47,7 +56,9 @@ export class ProwlarrAddon extends BaseDebridAddon<ProwlarrAddonConfig> {
     parsedId: ParsedId,
     metadata: SearchMetadata
   ): Promise<UnprocessedTorrent[]> {
+    const queryLimit = createQueryLimit();
     let availableIndexers: ProwlarrApiIndexer[] = [];
+    let chosenTags: number[] = [];
     try {
       const { data } = await this.api.indexers();
       availableIndexers = data;
@@ -59,55 +70,54 @@ export class ProwlarrAddon extends BaseDebridAddon<ProwlarrAddonConfig> {
       }
       throw new Error(`Failed to get Prowlarr indexers: ${error}`);
     }
-    const chosenIndexerIds = availableIndexers
-      .filter(
-        (indexer) =>
-          indexer.enable &&
-          (!this.indexers.length ||
-            this.indexers.includes(indexer.name.toLowerCase()) ||
-            this.indexers.includes(indexer.definitionName.toLowerCase()) ||
-            this.indexers.includes(indexer.sortName.toLowerCase()))
-      )
-      .map((indexer) => indexer.id);
-
-    let queries: string[] = [];
-
-    if (metadata.primaryTitle) {
-      queries.push(metadata.primaryTitle);
-      if (parsedId.season && parsedId.episode) {
-        queries = [
-          `${metadata.primaryTitle} S${parsedId.season.toString().padStart(2, '0')}E${parsedId.episode.toString().padStart(2, '0')}`,
-          `${metadata.primaryTitle} S${parsedId.season.toString().padStart(2, '0')}`,
-        ];
-        if (metadata.absoluteEpisode)
-          queries.push(
-            `${metadata.primaryTitle} ${metadata.absoluteEpisode.toString().padStart(2, '0')}`
-          );
-      }
-      if (metadata.year && parsedId.mediaType === 'movie') {
-        queries = queries.map((q) => `${q} ${metadata.year}`);
-      }
+    try {
+      const { data } = await this.api.tags();
+      chosenTags = data
+        .filter((tag) => this.tags.includes(tag.label.toLowerCase()))
+        .map((tag) => tag.id);
+    } catch (error) {
+      logger.warn(`Failed to get Prowlarr tags: ${error}`);
     }
+    const chosenIndexers = availableIndexers.filter(
+      (indexer) =>
+        indexer.enable &&
+        ((!this.indexers.length && !chosenTags.length) ||
+          (chosenTags.length &&
+            indexer.tags.some((tag) => chosenTags.includes(tag))) ||
+          (this.indexers.length &&
+            (this.indexers.includes(indexer.name.toLowerCase()) ||
+              this.indexers.includes(indexer.definitionName.toLowerCase()) ||
+              this.indexers.includes(indexer.sortName.toLowerCase()))))
+    );
+    // .map((indexer) => indexer.id);
+    this.logger.info(
+      `Chosen indexers: ${chosenIndexers.map((indexer) => indexer.name).join(', ')}`
+    );
 
+    const queries = this.buildQueries(parsedId, metadata, {
+      useAllTitles: useAllTitles(this.userData.url),
+    });
     if (queries.length === 0) {
       return [];
     }
 
-    const searchPromises = queries.map(async (q) => {
-      const start = Date.now();
-      const { data } = await this.api.search({
-        query: q,
-        indexerIds: chosenIndexerIds,
-        type: 'search',
-      });
-      this.logger.info(
-        `Prowlarr search for ${q} took ${getTimeTakenSincePoint(start)}`,
-        {
-          results: data.length,
-        }
-      );
-      return data;
-    });
+    const searchPromises = queries.map((q) =>
+      queryLimit(async () => {
+        const start = Date.now();
+        const { data } = await this.api.search({
+          query: q,
+          indexerIds: chosenIndexers.map((indexer) => indexer.id),
+          type: 'search',
+        });
+        this.logger.info(
+          `Prowlarr search for ${q} took ${getTimeTakenSincePoint(start)}`,
+          {
+            results: data.length,
+          }
+        );
+        return data;
+      })
+    );
     const allResults = await Promise.all(searchPromises);
     const results = allResults.flat();
 
@@ -117,16 +127,17 @@ export class ProwlarrAddon extends BaseDebridAddon<ProwlarrAddonConfig> {
     for (const result of results) {
       const magnetUrl = result.guid.includes('magnet:')
         ? result.guid
-        : result.magnetUrl;
+        : undefined;
       const downloadUrl = result.magnetUrl?.startsWith('http')
         ? result.magnetUrl
         : result.downloadUrl;
-      const infoHash =
+      const infoHash = validateInfoHash(
         result.infoHash ||
-        (magnetUrl ? extractInfoHashFromMagnet(magnetUrl) : undefined);
-      if (!infoHash) continue;
-      if (seenTorrents.has(infoHash)) continue;
-      seenTorrents.add(infoHash);
+          (magnetUrl ? extractInfoHashFromMagnet(magnetUrl) : undefined)
+      );
+      if (!infoHash && !downloadUrl) continue;
+      if (seenTorrents.has(infoHash ?? downloadUrl!)) continue;
+      seenTorrents.add(infoHash ?? downloadUrl!);
 
       torrents.push({
         hash: infoHash,

@@ -1,6 +1,11 @@
-import { Stream, ParsedStream, Addon, ParsedFile } from '../db';
-import { constants, createLogger, Env, FULL_LANGUAGE_MAPPING } from '../utils';
-import FileParser from './file';
+import { Stream, ParsedStream, Addon, ParsedFile } from '../db/index.js';
+import {
+  constants,
+  createLogger,
+  Env,
+  FULL_LANGUAGE_MAPPING,
+} from '../utils/index.js';
+import FileParser from './file.js';
 const logger = createLogger('parser');
 
 class StreamParser {
@@ -214,7 +219,7 @@ class StreamParser {
 
     for (const line of potentialFilenames) {
       const parsed = FileParser.parse(line);
-      if (parsed.year || (parsed.season && parsed.episode) || parsed.episode) {
+      if (parsed.year || parsed.season || parsed.episode) {
         filename = line;
         break;
       }

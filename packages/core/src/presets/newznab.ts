@@ -1,7 +1,7 @@
-import { Addon, Option, Stream, UserData } from '../db';
-import { Preset, baseOptions } from './preset';
-import { Env, RESOURCES, ServiceId, constants } from '../utils';
-import { BuiltinAddonPreset } from './builtin';
+import { Addon, Option, Stream, UserData } from '../db/index.js';
+import { Preset, baseOptions } from './preset.js';
+import { Env, RESOURCES, ServiceId, constants } from '../utils/index.js';
+import { BuiltinAddonPreset } from './builtin.js';
 
 export class NewznabPreset extends BuiltinAddonPreset {
   static override get METADATA() {
@@ -47,6 +47,7 @@ export class NewznabPreset extends BuiltinAddonPreset {
         constraints: {
           min: Env.MIN_TIMEOUT,
           max: Env.MAX_TIMEOUT,
+          forceInUi: false,
         },
       },
       {
@@ -67,8 +68,7 @@ export class NewznabPreset extends BuiltinAddonPreset {
       TIMEOUT: Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: [constants.TORBOX_SERVICE],
-      DESCRIPTION:
-        'Directly search a Newznab instance for results with your services.',
+      DESCRIPTION: 'An addon to get usenet results from a Newznab endpoint.',
       OPTIONS: options,
       SUPPORTED_STREAM_TYPES: [constants.USENET_STREAM_TYPE],
       SUPPORTED_RESOURCES: supportedResources,
@@ -130,16 +130,11 @@ export class NewznabPreset extends BuiltinAddonPreset {
     options: Record<string, any>
   ) {
     const config = {
+      ...this.getBaseConfig(userData, services),
       url: options.newznabUrl,
       apiPath: options.apiPath,
       apiKey: options.apiKey,
-      tmdbAccessToken: userData.tmdbAccessToken,
-      tmdbApiKey: userData.tmdbApiKey,
       forceQuerySearch: options.forceQuerySearch ?? false,
-      services: services.map((service) => ({
-        id: service,
-        credential: this.getServiceCredential(service, userData),
-      })),
     };
 
     const configString = this.base64EncodeJSON(config);

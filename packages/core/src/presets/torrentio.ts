@@ -1,8 +1,15 @@
-import { Addon, Option, UserData, Resource, Stream, ParsedStream } from '../db';
-import { Preset, baseOptions } from './preset';
-import { Env, SERVICE_DETAILS } from '../utils';
-import { constants, ServiceId } from '../utils';
-import { StreamParser } from '../parser';
+import {
+  Addon,
+  Option,
+  UserData,
+  Resource,
+  Stream,
+  ParsedStream,
+} from '../db/index.js';
+import { Preset, baseOptions } from './preset.js';
+import { Env, SERVICE_DETAILS } from '../utils/index.js';
+import { constants, ServiceId } from '../utils/index.js';
+import { StreamParser } from '../parser/index.js';
 
 export class TorrentioParser extends StreamParser {
   override getFolder(stream: Stream): string | undefined {

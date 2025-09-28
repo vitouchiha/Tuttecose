@@ -1,4 +1,4 @@
-import { Option } from '../db/schemas';
+import { Option, Resource } from '../db/schemas.js';
 
 export enum ErrorCode {
   // User API
@@ -125,6 +125,7 @@ export const LIGHT_GDRIVE_FORMATTER = 'lightgdrive';
 export const MINIMALISTIC_GDRIVE_FORMATTER = 'minimalisticgdrive';
 export const TORRENTIO_FORMATTER = 'torrentio';
 export const TORBOX_FORMATTER = 'torbox';
+export const PRISM_FORMATTER = 'prism';
 export const CUSTOM_FORMATTER = 'custom';
 
 export const FORMATTERS = [
@@ -133,6 +134,7 @@ export const FORMATTERS = [
   MINIMALISTIC_GDRIVE_FORMATTER,
   TORRENTIO_FORMATTER,
   TORBOX_FORMATTER,
+  PRISM_FORMATTER,
   CUSTOM_FORMATTER,
 ] as const;
 
@@ -153,6 +155,11 @@ export const FORMATTER_DETAILS: Record<FormatterType, FormatterDetail> = {
     name: 'Light Google Drive',
     description:
       'A lighter version of the GDrive formatter, focused on asthetics',
+  },
+  [PRISM_FORMATTER]: {
+    id: PRISM_FORMATTER,
+    name: 'Prism',
+    description: 'An aesthetic formatter with every detail within 5 lines.',
   },
   [MINIMALISTIC_GDRIVE_FORMATTER]: {
     id: MINIMALISTIC_GDRIVE_FORMATTER,
@@ -618,6 +625,8 @@ const VISUAL_TAGS = [
   'IMAX',
   'AI',
   'SDR',
+  'H-OU',
+  'H-SBS',
   'Unknown',
 ] as const;
 
@@ -644,8 +653,8 @@ const ENCODES = [
   'AVC',
   'XviD',
   'DivX',
-  'H-OU',
-  'H-SBS',
+  // 'H-OU',
+  // 'H-SBS',
   'Unknown',
 ] as const;
 
@@ -874,6 +883,14 @@ export const TYPES = [
   ANIME_TYPE,
 ] as const;
 
+export const TYPE_LABELS: Record<(typeof TYPES)[number], string> = {
+  [MOVIE_TYPE]: 'Movie',
+  [SERIES_TYPE]: 'Series',
+  [CHANNEL_TYPE]: 'Channel',
+  [TV_TYPE]: 'TV',
+  [ANIME_TYPE]: 'Anime',
+};
+
 const RESOURCES = [
   STREAM_RESOURCE,
   SUBTITLES_RESOURCE,
@@ -881,6 +898,14 @@ const RESOURCES = [
   META_RESOURCE,
   ADDON_CATALOG_RESOURCE,
 ] as const;
+
+export const RESOURCE_LABELS: Record<Resource, string> = {
+  [STREAM_RESOURCE]: 'Stream',
+  [SUBTITLES_RESOURCE]: 'Subtitles',
+  [CATALOG_RESOURCE]: 'Catalog',
+  [META_RESOURCE]: 'Metadata',
+  [ADDON_CATALOG_RESOURCE]: 'Addon Catalog',
+};
 
 const LANGUAGES = [
   'English',

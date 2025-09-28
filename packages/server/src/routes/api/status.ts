@@ -3,12 +3,13 @@ import {
   Env,
   getEnvironmentServiceDetails,
   PresetManager,
+  PTT,
   UserRepository,
 } from '@aiostreams/core';
 import { StatusResponse } from '@aiostreams/core';
 import { encryptString } from '@aiostreams/core';
 import { FeatureControl } from '@aiostreams/core';
-import { createResponse } from '../../utils/responses';
+import { createResponse } from '../../utils/responses.js';
 
 const router: Router = Router();
 
@@ -19,6 +20,14 @@ const statusInfo = async (): Promise<StatusResponse> => {
   if (Env.FORCE_PUBLIC_PROXY_HOST) {
     forcedPublicProxyUrl = `${Env.FORCE_PUBLIC_PROXY_PROTOCOL}://${Env.FORCE_PUBLIC_PROXY_HOST}:${Env.FORCE_PUBLIC_PROXY_PORT ?? ''}`;
   }
+
+  // test PTT server.
+
+  const parsed = (await PTT.parse(['The Flash S01E01']))[0];
+  if (!parsed || parsed.err) {
+    throw new Error('Failed to parse title: ' + parsed?.err || 'Unknown error');
+  }
+
   return {
     version: Env.VERSION,
     tag: Env.TAG,
@@ -30,6 +39,7 @@ const statusInfo = async (): Promise<StatusResponse> => {
       baseUrl: Env.BASE_URL,
       addonName: Env.ADDON_NAME,
       customHtml: Env.CUSTOM_HTML,
+      alternateDesign: Env.ALTERNATE_DESIGN,
       protected: Env.ADDON_PASSWORD.length > 0,
       tmdbApiAvailable: !!Env.TMDB_ACCESS_TOKEN,
       regexFilterAccess: Env.REGEX_FILTER_ACCESS,

@@ -1,8 +1,8 @@
-import { Addon, Option, Stream, UserData } from '../db';
-import { Preset, baseOptions } from './preset';
-import { Env, RESOURCES, ServiceId, constants } from '../utils';
-import { StremThruPreset } from './stremthru';
-import { BuiltinAddonPreset } from './builtin';
+import { Addon, Option, Stream, UserData } from '../db/index.js';
+import { Preset, baseOptions } from './preset.js';
+import { Env, RESOURCES, ServiceId, constants } from '../utils/index.js';
+import { StremThruPreset } from './stremthru.js';
+import { BuiltinAddonPreset } from './builtin.js';
 
 export class TorznabPreset extends BuiltinAddonPreset {
   static override get METADATA() {
@@ -48,6 +48,7 @@ export class TorznabPreset extends BuiltinAddonPreset {
         constraints: {
           min: Env.MIN_TIMEOUT,
           max: Env.MAX_TIMEOUT,
+          forceInUi: false,
         },
       },
       {
@@ -83,8 +84,7 @@ export class TorznabPreset extends BuiltinAddonPreset {
       TIMEOUT: Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: StremThruPreset.supportedServices,
-      DESCRIPTION:
-        'Directly search a Torznab instance for results with your services.',
+      DESCRIPTION: 'An addon to get debrid results from a Torznab endpoint.',
       OPTIONS: options,
       SUPPORTED_STREAM_TYPES: [constants.DEBRID_STREAM_TYPE],
       SUPPORTED_RESOURCES: supportedResources,
@@ -124,6 +124,7 @@ export class TorznabPreset extends BuiltinAddonPreset {
       enabled: true,
       library: options.libraryAddon ?? false,
       resources: options.resources || undefined,
+      mediaTypes: options.mediaTypes || [],
       timeout: options.timeout || this.METADATA.TIMEOUT,
       preset: {
         id: '',
@@ -146,16 +147,11 @@ export class TorznabPreset extends BuiltinAddonPreset {
     options: Record<string, any>
   ) {
     const config = {
+      ...this.getBaseConfig(userData, services),
       url: options.torznabUrl,
       apiPath: options.apiPath,
       apiKey: options.apiKey,
-      tmdbAccessToken: userData.tmdbAccessToken,
-      tmdbApiKey: userData.tmdbApiKey,
       forceQuerySearch: options.forceQuerySearch ?? false,
-      services: services.map((service) => ({
-        id: service,
-        credential: this.getServiceCredential(service, userData),
-      })),
     };
 
     const configString = this.base64EncodeJSON(config);

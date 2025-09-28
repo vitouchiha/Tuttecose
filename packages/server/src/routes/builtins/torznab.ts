@@ -1,6 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { AIOStreams, AIOStreamResponse, TorznabAddon } from '@aiostreams/core';
-import { stremioStreamRateLimiter } from '../../middlewares/ratelimit';
 import { createLogger } from '@aiostreams/core';
 const router: Router = Router();
 

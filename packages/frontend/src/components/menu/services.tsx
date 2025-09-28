@@ -303,6 +303,7 @@ function Content() {
         description="Provide your RPDB API key if you want catalogs of supported types to use posters from RPDB"
       >
         <PasswordInput
+          autoComplete="new-password"
           label="RPDB API Key"
           help={
             <span>
@@ -413,6 +414,36 @@ function Content() {
             setUserData((prev) => ({
               ...prev,
               tmdbApiKey: value,
+            }));
+          }}
+        />
+      </SettingsCard>
+
+      <SettingsCard
+        title="TVDB"
+        description="Provide your TVDB API key to also fetch metadata from TVDB."
+      >
+        <PasswordInput
+          label="TVDB API Key"
+          value={userData.tvdbApiKey}
+          placeholder="Enter your TVDB API Key"
+          help={
+            <span>
+              Sign up for a <b>free</b> API Key at{' '}
+              <a
+                href="https://www.thetvdb.com/api-information"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[--brand] hover:underline"
+              >
+                TVDB.{' '}
+              </a>
+            </span>
+          }
+          onValueChange={(value) => {
+            setUserData((prev) => ({
+              ...prev,
+              tvdbApiKey: value,
             }));
           }}
         />

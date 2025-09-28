@@ -5,10 +5,10 @@ import {
   ParsedStream,
   Stream,
   AIOStream,
-} from '../db';
-import { Preset, baseOptions } from './preset';
-import { constants, Env, RESOURCES } from '../utils';
-import { StreamParser } from '../parser';
+} from '../db/index.js';
+import { Preset, baseOptions } from './preset.js';
+import { constants, Env, RESOURCES } from '../utils/index.js';
+import { StreamParser } from '../parser/index.js';
 
 class DMMCastStreamParser extends StreamParser {
   protected override getFilename(
@@ -80,6 +80,7 @@ export class DMMCastPreset extends Preset {
         constraints: {
           min: Env.MIN_TIMEOUT,
           max: Env.MAX_TIMEOUT,
+          forceInUi: false,
         },
       },
       {

@@ -1,10 +1,8 @@
-import { createLogger } from './logger';
-import { DB } from '../db/db';
-import { Cache } from './cache';
+import { DB } from '../db/db.js';
 import { RedisClientType } from 'redis';
-import { Env } from './env';
-import { REDIS_PREFIX } from './constants';
-import { TransactionQueue } from '../db/queue';
+import { TransactionQueue } from '../db/queue.js';
+import { Cache, Env, REDIS_PREFIX } from './index.js';
+import { createLogger } from './logger.js';
 
 const logger = createLogger('distributed-lock');
 const lockPrefix = `${REDIS_PREFIX}lock:`;
@@ -148,7 +146,7 @@ export class DistributedLock {
     const { timeout = 30000, ttl = 60000 } = options;
     const { retryInterval = db.isSQLite() ? 250 : 100 } = options;
     const owner = Math.random().toString(36).substring(2);
-    const expiresAt = new Date(Date.now() + ttl);
+    const expiresAt = Date.now() + ttl;
 
     const tryAcquireLock = async () => {
       return TransactionQueue.getInstance().enqueue(async () => {
@@ -156,22 +154,32 @@ export class DistributedLock {
         try {
           await tx.execute(
             `DELETE FROM distributed_locks WHERE expires_at < ?`,
-            [new Date()]
+            [Date.now()]
           );
-          const existing = await tx.execute(
-            `SELECT * FROM distributed_locks WHERE key = ?`,
-            [key]
-          );
-          if (existing.rows.length === 0) {
-            await tx.execute(
-              `INSERT INTO distributed_locks (key, owner, expires_at) VALUES (?, ?, ?)`,
+
+          let acquired = false;
+          if (db.isSQLite()) {
+            const result = await tx.execute(
+              `INSERT OR IGNORE INTO distributed_locks (key, owner, expires_at) VALUES (?, ?, ?)`,
               [key, owner, expiresAt]
             );
-            await tx.commit();
+            acquired = db.getRowsAffected(result) > 0;
+          } else {
+            const result = await tx.execute(
+              `INSERT INTO distributed_locks (key, owner, expires_at) 
+               VALUES ($1, $2, $3)
+               ON CONFLICT (key) DO NOTHING
+               RETURNING key`,
+              [key, owner, expiresAt]
+            );
+            acquired = (result.rows.length || result.rowCount) > 0;
+          }
+
+          await tx.commit();
+          if (acquired) {
             logger.debug(`SQL lock acquired for key: ${key}`);
             return true;
           }
-          await tx.rollback();
           return false;
         } catch (e) {
           await tx.rollback();

@@ -1,16 +1,21 @@
 import { StremThru, StremThruError } from 'stremthru';
-import { Env, ServiceId, createLogger, getSimpleTextHash } from '../utils';
-import { selectFileInTorrentOrNZB, Torrent } from './utils';
+import {
+  Env,
+  ServiceId,
+  createLogger,
+  getSimpleTextHash,
+  Cache,
+} from '../utils/index.js';
+import { selectFileInTorrentOrNZB, Torrent } from './utils.js';
 import {
   DebridService,
   DebridServiceConfig,
   DebridDownload,
   PlaybackInfo,
   DebridError,
-} from './base';
-import { Cache } from '../utils';
-import { StremThruServiceId } from '../presets/stremthru';
-import { PTT } from '../parser';
+} from './base.js';
+import { StremThruServiceId } from '../presets/stremthru.js';
+import { PTT } from '../parser/index.js';
 import { ParseResult } from 'go-ptt';
 
 const logger = createLogger('debrid:stremthru');
@@ -28,7 +33,7 @@ function convertStremThruError(error: StremThruError): DebridError {
 
 export class StremThruInterface implements DebridService {
   private readonly stremthru: StremThru;
-  private static playbackLinkCache = Cache.getInstance<string, string>(
+  private static playbackLinkCache = Cache.getInstance<string, string | null>(
     'st:link'
   );
   private static checkCache = Cache.getInstance<string, DebridDownload>(
@@ -63,7 +68,7 @@ export class StremThruInterface implements DebridService {
     const cachedResults: DebridDownload[] = [];
     const magnetsToCheck: string[] = [];
     for (const magnet of magnets) {
-      const cacheKey = getSimpleTextHash(magnet);
+      const cacheKey = `${this.serviceName}:${getSimpleTextHash(magnet)}`;
       const cached = await StremThruInterface.checkCache.get(cacheKey);
       if (cached) {
         cachedResults.push(cached);
@@ -89,6 +94,19 @@ export class StremThruInterface implements DebridService {
               magnet: batch,
               sid,
             });
+
+            if (!result.data) {
+              logger.warn(
+                `StremThru checkMagnets returned no data: ${JSON.stringify(result)}`
+              );
+              throw new DebridError('No data returned from StremThru', {
+                statusCode: result.meta.statusCode,
+                statusText: result.meta.statusText,
+                code: 'UNKNOWN',
+                headers: result.meta.headers,
+                body: result.data,
+              });
+            }
             return result.data.items;
           })
         );
@@ -110,7 +128,7 @@ export class StremThruInterface implements DebridService {
           };
           newResults.push(download);
           StremThruInterface.checkCache.set(
-            getSimpleTextHash(item.hash),
+            `${this.serviceName}:${getSimpleTextHash(item.hash)}`,
             download,
             Env.BUILTIN_DEBRID_INSTANT_AVAILABILITY_CACHE_TTL
           );
@@ -184,7 +202,7 @@ export class StremThruInterface implements DebridService {
     }
 
     const { hash, file: chosenFile, metadata } = playbackInfo;
-    const cacheKey = `${this.serviceName}:${this.config.token}:${this.config.clientIp}:${JSON.stringify(playbackInfo)}`;
+    const cacheKey = `${this.serviceName}:${this.config.token}:${this.config.clientIp}:${playbackInfo.hash}:${playbackInfo.metadata?.season}:${playbackInfo.metadata?.episode}:${playbackInfo.metadata?.absoluteEpisode}`;
     const cachedLink = await StremThruInterface.playbackLinkCache.get(cacheKey);
 
     let magnet = `magnet:?xt=urn:btih:${hash}`;
@@ -192,9 +210,9 @@ export class StremThruInterface implements DebridService {
       magnet += `&tr=${playbackInfo.sources.join('&tr=')}`;
     }
 
-    if (cachedLink) {
+    if (cachedLink !== undefined) {
       logger.debug(`Using cached link for ${hash}`);
-      return cachedLink;
+      return cachedLink ?? undefined;
     }
 
     logger.debug(`Adding magnet to ${this.serviceName} for ${magnet}`);
@@ -207,6 +225,8 @@ export class StremThruInterface implements DebridService {
     });
 
     if (magnetDownload.status !== 'downloaded') {
+      // temporarily cache the null value for 1m
+      StremThruInterface.playbackLinkCache.set(cacheKey, null, 60);
       return undefined;
     }
 

@@ -1,5 +1,5 @@
-import { baseOptions, Preset } from './preset';
-import { constants, Env } from '../utils';
+import { baseOptions, Preset } from './preset.js';
+import { constants, Env } from '../utils/index.js';
 import {
   PresetMetadata,
   Option,
@@ -7,8 +7,8 @@ import {
   UserData,
   ParsedStream,
   Stream,
-} from '../db';
-import { StreamParser } from '../parser';
+} from '../db/index.js';
+import { StreamParser } from '../parser/index.js';
 
 export class EasynewsParser extends StreamParser {
   protected override getStreamType(

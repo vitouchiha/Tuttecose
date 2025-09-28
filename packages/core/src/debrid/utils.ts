@@ -1,10 +1,7 @@
 import { z } from 'zod';
-import { constants, createLogger } from '../utils';
-
-import { BuiltinServiceId } from '../utils';
-import { DebridFile, DebridDownload } from './base';
-import { PTT } from '../parser';
-import { normaliseTitle, titleMatch } from '../parser/utils';
+import { constants, createLogger, BuiltinServiceId } from '../utils/index.js';
+import { DebridFile, DebridDownload } from './base.js';
+import { normaliseTitle, titleMatch } from '../parser/utils.js';
 
 const logger = createLogger('debrid');
 
@@ -68,14 +65,24 @@ export interface NZBWithSelectedFile extends NZB {
 
 // helpers
 export const isSeasonWrong = (
-  parsed: { seasons?: number[] },
-  metadata?: { season?: number }
+  parsed: { seasons?: number[]; episodes?: number[] },
+  metadata?: { season?: number; absoluteEpisode?: number }
 ) => {
   if (
     parsed.seasons?.length &&
     metadata?.season &&
     !parsed.seasons.includes(metadata.season)
   ) {
+    // allow if season is "wrong" with value of 1 but absolute episode is correct
+    if (
+      parsed.seasons.length === 1 &&
+      parsed.seasons[0] === 1 &&
+      parsed.episodes?.length &&
+      metadata.absoluteEpisode &&
+      parsed.episodes.includes(metadata.absoluteEpisode)
+    ) {
+      return false;
+    }
     return true;
   }
   return false;

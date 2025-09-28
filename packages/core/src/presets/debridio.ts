@@ -1,4 +1,4 @@
-import { Option } from '../db';
+import { Option } from '../db/index.js';
 
 export const debridioSocialOption: Option = {
   id: 'socials',

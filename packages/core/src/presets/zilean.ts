@@ -1,8 +1,8 @@
-import { Option, UserData } from '../db';
-import { Env, constants } from '../utils';
-import { baseOptions } from './preset';
-import { StremThruPreset } from './stremthru';
-import { TorznabPreset } from './torznab';
+import { Option, UserData } from '../db/index.js';
+import { Env, constants } from '../utils/index.js';
+import { baseOptions } from './preset.js';
+import { StremThruPreset } from './stremthru.js';
+import { TorznabPreset } from './torznab.js';
 
 export class ZileanPreset extends TorznabPreset {
   static override get METADATA() {
@@ -11,7 +11,7 @@ export class ZileanPreset extends TorznabPreset {
       ...baseOptions(
         'Zilean',
         supportedResources,
-        Env.BUILTIN_ZILEAN_TIMEOUT || Env.DEFAULT_TIMEOUT
+        Env.BUILTIN_DEFAULT_ZILEAN_TIMEOUT || Env.DEFAULT_TIMEOUT
       ).filter((option) => option.id !== 'url' && option.id !== 'resources'),
       {
         id: 'url',
@@ -42,10 +42,11 @@ export class ZileanPreset extends TorznabPreset {
       NAME: 'Zilean',
       LOGO: '/assets/zilean_logo.jpg',
       URL: Env.BUILTIN_ZILEAN_URL,
-      TIMEOUT: Env.BUILTIN_ZILEAN_TIMEOUT || Env.DEFAULT_TIMEOUT,
+      TIMEOUT: Env.BUILTIN_DEFAULT_ZILEAN_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: StremThruPreset.supportedServices,
-      DESCRIPTION: 'Directly search a Zilean instance.',
+      DESCRIPTION:
+        'An addon to get debrid results from Zilean, a DMM hashlist scraper.',
       OPTIONS: options,
       SUPPORTED_STREAM_TYPES: [constants.DEBRID_STREAM_TYPE],
       SUPPORTED_RESOURCES: supportedResources,
@@ -61,14 +62,9 @@ export class ZileanPreset extends TorznabPreset {
     const zileanUrl = (options.url || this.METADATA.URL).replace(/\/$/, '');
 
     const config = {
+      ...this.getBaseConfig(userData, services),
       url: `${zileanUrl}/torznab`,
       apiPath: '/api',
-      tmdbAccessToken: userData.tmdbAccessToken,
-      tmdbApiKey: userData.tmdbApiKey,
-      services: services.map((service) => ({
-        id: service,
-        credential: this.getServiceCredential(service, userData),
-      })),
     };
 
     const configString = this.base64EncodeJSON(config);

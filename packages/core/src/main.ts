@@ -4,7 +4,7 @@ import {
   Resource,
   StrictManifestResource,
   UserData,
-} from './db';
+} from './db/index.js';
 import {
   constants,
   createLogger,
@@ -16,9 +16,11 @@ import {
   ExtrasParser,
   makeUrlLogSafe,
   AnimeDatabase,
-} from './utils';
-import { Wrapper } from './wrapper';
-import { PresetManager } from './presets';
+  ParsedId,
+  IdParser,
+} from './utils/index.js';
+import { Wrapper } from './wrapper.js';
+import { PresetManager } from './presets/index.js';
 import {
   AddonCatalog,
   Meta,
@@ -27,12 +29,12 @@ import {
   ParsedStream,
   Preset,
   Subtitle,
-} from './db/schemas';
-import { createProxy } from './proxy';
-import { RPDB } from './utils/rpdb';
-import { FeatureControl } from './utils/feature';
-import Proxifier from './streams/proxifier';
-import StreamLimiter from './streams/limiter';
+} from './db/schemas.js';
+import { createProxy } from './proxy/index.js';
+import { RPDB } from './utils/rpdb.js';
+import { FeatureControl } from './utils/feature.js';
+import Proxifier from './streams/proxifier.js';
+import StreamLimiter from './streams/limiter.js';
 import {
   StreamFetcher as Fetcher,
   StreamFilterer as Filterer,
@@ -40,10 +42,10 @@ import {
   StreamDeduplicator as Deduplicator,
   StreamPrecomputer as Precomputer,
   StreamUtils,
-} from './streams';
-import { getAddonName } from './utils/general';
-import { TMDBMetadata } from './metadata/tmdb';
-import { Metadata } from './metadata/utils';
+} from './streams/index.js';
+import { getAddonName } from './utils/general.js';
+import { TMDBMetadata } from './metadata/tmdb.js';
+import { Metadata } from './metadata/utils.js';
 const logger = createLogger('core');
 
 const shuffleCache = Cache.getInstance<string, MetaPreview[]>('shuffle');
@@ -103,11 +105,11 @@ export class AIOStreams {
     this.options = options;
     this.proxifier = new Proxifier(userData);
     this.limiter = new StreamLimiter(userData);
-    this.fetcher = new Fetcher(userData);
     this.filterer = new Filterer(userData);
+    this.precomputer = new Precomputer(userData);
+    this.fetcher = new Fetcher(userData, this.filterer, this.precomputer);
     this.deduplicator = new Deduplicator(userData);
     this.sorter = new Sorter(userData);
-    this.precomputer = new Precomputer(userData);
   }
 
   private setUserData(userData: UserData) {
@@ -143,7 +145,7 @@ export class AIOStreams {
     }>
   > {
     logger.info(`Handling stream request`, { type, id });
-
+    const statistics: { title: string; description: string }[] = [];
     // get a list of all addons that support the stream resource with the given type and id.
     const supportedAddons = [];
     for (const [instanceId, addonResources] of Object.entries(
@@ -172,11 +174,18 @@ export class AIOStreams {
       }
     );
 
-    const { streams, errors, statistics } = await this.fetcher.fetch(
-      supportedAddons,
-      type,
-      id
-    );
+    const {
+      streams,
+      errors,
+      statistics: addonStatistics,
+    } = await this.fetcher.fetch(supportedAddons, type, id);
+
+    if (
+      this.userData.statistics?.enabled &&
+      this.userData.statistics?.statsToShow?.includes('addon')
+    ) {
+      statistics.push(...addonStatistics);
+    }
 
     // append initialisation errors to the errors array
     errors.push(
@@ -217,6 +226,53 @@ export class AIOStreams {
       }
     }
 
+    const { filterDetails, includedDetails } =
+      this.filterer.getFormattedFilterDetails();
+
+    // append formatted filter statistics to the statistics array
+    // Helper to split details array into groups by 📌
+    function splitByPin(details: string[]): string[][] {
+      const groups: string[][] = [];
+      let currentGroup: string[] = [];
+      for (const line of details) {
+        if (line.trim().startsWith('📌')) {
+          if (currentGroup.length > 0) {
+            groups.push(currentGroup);
+          }
+          currentGroup = [line];
+        } else {
+          currentGroup.push(line);
+        }
+      }
+      if (currentGroup.length > 0) {
+        groups.push(currentGroup);
+      }
+      return groups;
+    }
+
+    if (
+      this.userData.statistics?.enabled &&
+      this.userData.statistics?.statsToShow?.includes('filter')
+    ) {
+      if (filterDetails.length > 0) {
+        const removalGroups = splitByPin(filterDetails);
+        for (const group of removalGroups) {
+          statistics.push({
+            title: '🔍 Removal Reasons',
+            description: group.join('\n').trim(),
+          });
+        }
+      }
+      if (includedDetails.length > 0) {
+        const includedGroups = splitByPin(includedDetails);
+        for (const group of includedGroups) {
+          statistics.push({
+            title: '🔍 Included Reasons',
+            description: group.join('\n').trim(),
+          });
+        }
+      }
+    }
     // return the final list of streams, followed by the error streams.
     logger.info(
       `Returning ${finalStreams.length} streams and ${errors.length} errors and ${statistics.length} statistic`
@@ -1194,16 +1250,16 @@ export class AIOStreams {
     });
   }
 
-  private async getMetadata(id: string): Promise<Metadata | undefined> {
+  private async getMetadata(parsedId: ParsedId): Promise<Metadata | undefined> {
     try {
       const metadata = await new TMDBMetadata({
         accessToken: this.userData.tmdbAccessToken,
         apiKey: this.userData.tmdbApiKey,
-      }).getMetadata(id, 'series');
+      }).getMetadata(parsedId);
       return metadata;
     } catch (error) {
       logger.warn(
-        `Error getting metadata for ${id}, will not be able to precache next season if necessary`,
+        `Error getting metadata for ${parsedId.fullId}, will not be able to precache next season if necessary`,
         {
           error: error instanceof Error ? error.message : String(error),
         }
@@ -1213,15 +1269,16 @@ export class AIOStreams {
   }
 
   private _getNextEpisode(
-    currentSeason: number,
+    currentSeason: number | undefined,
     currentEpisode: number,
     metadata?: Metadata
   ): {
-    season: number;
+    season: number | undefined;
     episode: number;
   } {
     let season = currentSeason;
     let episode = currentEpisode + 1;
+    if (!currentSeason) return { season, episode };
     const episodeCount = metadata?.seasons?.find(
       (s) => s.season_number === season
     )?.episode_count;
@@ -1257,7 +1314,7 @@ export class AIOStreams {
     processedStreams = await this.deduplicator.deduplicate(processedStreams);
 
     if (isMeta) {
-      await this.precomputer.precompute(processedStreams);
+      await this.precomputer.precompute(processedStreams, type, id);
     }
 
     let finalStreams = this.applyModifications(
@@ -1268,7 +1325,9 @@ export class AIOStreams {
               processedStreams,
               AnimeDatabase.getInstance().isAnime(id) ? 'anime' : type
             )
-          )
+          ),
+          type,
+          id
         )
       )
     ).map((stream) => {
@@ -1338,22 +1397,31 @@ export class AIOStreams {
   }
 
   private async precacheNextEpisode(type: string, id: string) {
-    const seasonEpisodeRegex = /:(\d+):(\d+)$/;
-    const match = id.match(seasonEpisodeRegex);
-    if (!match) {
+    const parsedId = IdParser.parse(id, type);
+    if (!parsedId) {
       return;
     }
-    const titleId = id.replace(seasonEpisodeRegex, '');
-    const currentSeason = Number(match[1]);
-    const currentEpisode = Number(match[2]);
 
-    const metadata = await this.getMetadata(id);
+    const currentSeason = parsedId.season ? Number(parsedId.season) : undefined;
+    const currentEpisode = parsedId.episode
+      ? Number(parsedId.episode)
+      : undefined;
+    if (!currentEpisode) {
+      return;
+    }
+
+    const metadata = await this.getMetadata(parsedId);
 
     const { season: seasonToPrecache, episode: episodeToPrecache } =
       this._getNextEpisode(currentSeason, currentEpisode, metadata);
 
-    const precacheId = `${titleId}:${seasonToPrecache}:${episodeToPrecache}`;
-    logger.info(`Pre-caching next episode of ${titleId}`, {
+    const precacheId = parsedId.generator(
+      parsedId.value,
+      seasonToPrecache?.toString(),
+      episodeToPrecache?.toString()
+    );
+    logger.info(`Pre-caching next episode`, {
+      titleId: parsedId.value,
       currentSeason,
       currentEpisode,
       episodeToPrecache,

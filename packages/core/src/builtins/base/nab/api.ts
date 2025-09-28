@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { fetch } from 'undici';
 import {
   Cache,
   DistributedLock,
@@ -7,7 +6,8 @@ import {
   formatZodError,
   getTimeTakenSincePoint,
   createLogger,
-} from '../../../utils';
+  makeRequest,
+} from '../../../utils/index.js';
 import { Parser } from 'xml2js';
 import { Logger } from 'winston';
 
@@ -82,11 +82,25 @@ const createTorznabItemSchema = () =>
   z
     .object({
       title: z.array(z.string()).transform((arr) => arr[0]),
-      link: z.array(z.string()).transform((arr) => arr[0]),
+      link: z
+        .array(z.string())
+        .optional()
+        .transform((arr) => arr?.[0]),
       guid: z
         .array(z.union([z.string(), z.object({ _: z.string() })]))
         .transform((arr) => (typeof arr[0] === 'string' ? arr[0] : arr[0]._)),
       pubDate: z.array(z.string()).transform((arr) => arr[0]),
+      jackettindexer: z
+        .array(
+          z.object({
+            _: z.string(),
+            $: z.object({ id: z.string() }),
+          })
+        )
+        .optional()
+        .transform((arr) =>
+          arr?.[0] ? { name: arr[0]._, id: arr[0].$.id } : undefined
+        ),
       size: z
         .array(z.string())
         .optional()
@@ -114,6 +128,7 @@ const createTorznabItemSchema = () =>
       link: item.link,
       guid: item.guid,
       pubDate: item.pubDate,
+      jackettindexer: item.jackettindexer,
       size: item.size,
       enclosure: item.enclosure,
       torznab: item['torznab:attr'],
@@ -123,7 +138,10 @@ const createNewznabItemSchema = () =>
   z
     .object({
       title: z.array(z.string()).transform((arr) => arr[0]),
-      link: z.array(z.string()).transform((arr) => arr[0]),
+      link: z
+        .array(z.string())
+        .optional()
+        .transform((arr) => arr?.[0]),
       guid: z
         .array(z.union([z.string(), z.object({ _: z.string() })]))
         .transform((arr) => (typeof arr[0] === 'string' ? arr[0] : arr[0]._)),
@@ -225,9 +243,9 @@ export class BaseNabApi<N extends 'torznab' | 'newznab'> {
   public async getCapabilities(): Promise<Capabilities> {
     const cacheKey = `${this.baseUrl}${this.apiPath}?t=caps`;
     return this.capabilitiesCache.wrap(
-      () => this.request('caps', CapabilitiesSchema),
+      () => this.request('caps', CapabilitiesSchema, undefined, 3000),
       cacheKey,
-      Env.BUILTIN_TORZNAB_CAPABILITIES_CACHE_TTL
+      Env.BUILTIN_NAB_CAPABILITIES_CACHE_TTL
     );
   }
 
@@ -239,7 +257,7 @@ export class BaseNabApi<N extends 'torznab' | 'newznab'> {
     return this.searchCache.wrap(
       () => this.request(searchFunction, this.SearchResultSchema, params),
       cacheKey,
-      Env.BUILTIN_TORZNAB_SEARCH_CACHE_TTL
+      Env.BUILTIN_NAB_SEARCH_CACHE_TTL
     );
   }
 
@@ -253,13 +271,17 @@ export class BaseNabApi<N extends 'torznab' | 'newznab'> {
   private async request<T>(
     func: string,
     schema: z.ZodSchema<T>,
-    params: Record<string, string | number | boolean> = {}
+    params: Record<string, string | number | boolean> = {},
+    timeout?: number
   ): Promise<T> {
     const lockKey = `${this.baseUrl}${this.apiPath}?t=${func}&${JSON.stringify(params)}&apikey=${this.apiKey}`;
     const { result } = await DistributedLock.getInstance().withLock(
       lockKey,
-      () => this._request(func, schema, params),
-      { timeout: 30000, ttl: 32000 }
+      () => this._request(func, schema, params, timeout),
+      {
+        timeout: timeout ?? Env.BUILTIN_NAB_SEARCH_TIMEOUT,
+        ttl: (timeout ?? Env.BUILTIN_NAB_SEARCH_TIMEOUT) + 1000,
+      }
     );
     return result;
   }
@@ -267,7 +289,8 @@ export class BaseNabApi<N extends 'torznab' | 'newznab'> {
   private async _request<T>(
     func: string,
     schema: z.ZodSchema<T>,
-    params: Record<string, string | number | boolean> = {}
+    params: Record<string, string | number | boolean> = {},
+    timeout?: number
   ): Promise<T> {
     const start = Date.now();
     const url = new URL(`${this.baseUrl}${this.apiPath}`);
@@ -284,23 +307,37 @@ export class BaseNabApi<N extends 'torznab' | 'newznab'> {
     this.logger.info(`Making ${this.namespace} request to: ${urlString}`);
 
     try {
-      const response = await fetch(urlString, {
+      const response = await makeRequest(urlString, {
         method: 'GET',
         headers: this.getHeaders(),
+        timeout: timeout ?? Env.BUILTIN_NAB_SEARCH_TIMEOUT,
       });
+
       const data = await response.text();
-      const result = await this.xmlParser.parseStringPromise(data);
+
+      let result: any | null = null;
+      let parseError: Error | null = null;
+      try {
+        result = await this.xmlParser.parseStringPromise(data);
+      } catch (error) {
+        parseError = error as Error;
+      }
       this.xmlParser.reset();
 
-      if (result.error) {
+      if (result && result.error) {
         const code = parseInt(result.error.$.code, 10);
         const description = result.error.$.description;
         throw new NabApiError(code, description);
       }
 
       if (!response.ok) {
+        throw new Error(`${response.status} - ${response.statusText}`);
+      }
+
+      if (parseError || !result) {
+        this.logger.error(`Unexpected XML response: ${data}`);
         throw new Error(
-          `${response.status} - ${response.statusText}${data ? `: ${data}` : ''}`
+          `Failed to parse XML response: ${parseError?.message ?? 'Unknown error'}`
         );
       }
 

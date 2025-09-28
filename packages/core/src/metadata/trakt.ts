@@ -7,7 +7,7 @@ import {
   ParsedId,
   formatZodError,
   Env,
-} from '../utils';
+} from '../utils/index.js';
 
 const traktAliasCache = Cache.getInstance<string, string[]>('trakt-aliases');
 const TRAKT_ALIAS_CACHE_TTL = 7 * 24 * 60 * 60; // 7 days
@@ -49,7 +49,7 @@ export async function getTraktAliases(
     const data = await makeRequest(
       `${TRAKT_API_BASE_URL}/${parsedId.mediaType === 'movie' ? 'movies' : 'shows'}/${imdbId}/aliases`,
       {
-        timeout: 1000,
+        timeout: 2000,
         headers: {
           'Content-Type': 'application/json',
           'trakt-api-version': '1',

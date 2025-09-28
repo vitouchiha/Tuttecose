@@ -1,6 +1,7 @@
-import { Addon, Option, UserData } from '../db';
-import { Preset, baseOptions } from './preset';
-import { Env, RESOURCES } from '../utils';
+import { Addon, Option, UserData } from '../db/index.js';
+import { Preset, baseOptions } from './preset.js';
+import { Env, RESOURCES } from '../utils/index.js';
+import { constants } from '../utils/index.js';
 
 export class CustomPreset extends Preset {
   static override get METADATA() {
@@ -63,6 +64,7 @@ export class CustomPreset extends Preset {
         constraints: {
           min: Env.MIN_TIMEOUT,
           max: Env.MAX_TIMEOUT,
+          forceInUi: false,
         },
       },
       {
@@ -75,9 +77,33 @@ export class CustomPreset extends Preset {
         showInNoobMode: false,
         default: undefined,
         options: RESOURCES.map((resource) => ({
-          label: resource,
+          label: constants.RESOURCE_LABELS[resource],
           value: resource,
         })),
+      },
+      {
+        id: 'mediaTypes',
+        name: 'Media Types',
+        description:
+          'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
+        type: 'multi-select',
+        required: false,
+        showInNoobMode: false,
+        default: [],
+        options: [
+          {
+            label: 'Movie',
+            value: 'movie',
+          },
+          {
+            label: 'Series',
+            value: 'series',
+          },
+          {
+            label: 'Anime',
+            value: 'anime',
+          },
+        ],
       },
     ];
 
@@ -127,6 +153,7 @@ export class CustomPreset extends Preset {
       enabled: true,
       library: options.libraryAddon ?? false,
       resources: options.resources || undefined,
+      mediaTypes: options.mediaTypes || [],
       timeout: options.timeout || this.METADATA.TIMEOUT,
       preset: {
         id: '',

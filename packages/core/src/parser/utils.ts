@@ -1,5 +1,5 @@
 import { extract, FuzzballExtractOptions } from 'fuzzball';
-import { createLogger } from '../utils';
+import { createLogger } from '../utils/index.js';
 
 const logger = createLogger('parser');
 
@@ -34,4 +34,15 @@ export function normaliseTitle(title: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^\p{L}\p{N}+]/gu, '')
     .toLowerCase();
+}
+
+export function cleanTitle(title: string) {
+  return title
+    .normalize('NFD')
+    .replace(/-/g, ' ')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
 }

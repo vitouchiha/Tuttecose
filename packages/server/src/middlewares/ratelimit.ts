@@ -21,12 +21,13 @@ const createRateLimiter = (
     return (req: Request, res: Response, next: NextFunction) => next();
   }
   const redisClient = Env.REDIS_URI ? Cache.getRedisClient() : undefined;
-  const store = redisClient
-    ? new RedisStore({
-        prefix: `${REDIS_PREFIX}rate-limit:`,
-        sendCommand: (...args: string[]) => redisClient.sendCommand(args),
-      })
-    : new MemoryStore();
+  const store =
+    redisClient && Env.RATE_LIMIT_STORE === 'redis'
+      ? new RedisStore({
+          prefix: `${REDIS_PREFIX}rate-limit:`,
+          sendCommand: (...args: string[]) => redisClient.sendCommand(args),
+        })
+      : new MemoryStore();
   return rateLimit({
     windowMs,
     max: maxRequests,

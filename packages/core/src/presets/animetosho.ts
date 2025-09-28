@@ -1,8 +1,8 @@
-import { Option, UserData } from '../db';
-import { Env, constants } from '../utils';
-import { baseOptions } from './preset';
-import { StremThruPreset } from './stremthru';
-import { TorznabPreset } from './torznab';
+import { Option, UserData } from '../db/index.js';
+import { Env, constants } from '../utils/index.js';
+import { baseOptions } from './preset.js';
+import { StremThruPreset } from './stremthru.js';
+import { TorznabPreset } from './torznab.js';
 
 export class AnimeToshoPreset extends TorznabPreset {
   static override get METADATA() {
@@ -11,7 +11,7 @@ export class AnimeToshoPreset extends TorznabPreset {
       ...baseOptions(
         'AnimeTosho',
         supportedResources,
-        Env.BUILTIN_ANIMETOSHO_TIMEOUT || Env.DEFAULT_TIMEOUT
+        Env.BUILTIN_DEFAULT_ANIMETOSHO_TIMEOUT || Env.DEFAULT_TIMEOUT
       ).filter((option) => option.id !== 'url' && option.id !== 'resources'),
       {
         id: 'services',
@@ -28,6 +28,30 @@ export class AnimeToshoPreset extends TorznabPreset {
         default: undefined,
         emptyIsUndefined: true,
       },
+      {
+        id: 'mediaTypes',
+        name: 'Media Types',
+        description:
+          'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
+        type: 'multi-select',
+        required: false,
+        showInNoobMode: false,
+        default: [],
+        options: [
+          {
+            label: 'Movie',
+            value: 'movie',
+          },
+          {
+            label: 'Series',
+            value: 'series',
+          },
+          {
+            label: 'Anime',
+            value: 'anime',
+          },
+        ],
+      },
     ];
 
     return {
@@ -35,10 +59,11 @@ export class AnimeToshoPreset extends TorznabPreset {
       NAME: 'AnimeTosho',
       LOGO: '/assets/animetosho_logo.png',
       URL: Env.BUILTIN_ANIMETOSHO_URL,
-      TIMEOUT: Env.BUILTIN_ANIMETOSHO_TIMEOUT || Env.DEFAULT_TIMEOUT,
+      TIMEOUT: Env.BUILTIN_DEFAULT_ANIMETOSHO_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_USER_AGENT,
       SUPPORTED_SERVICES: StremThruPreset.supportedServices,
-      DESCRIPTION: 'Directly search AnimeTosho.',
+      DESCRIPTION:
+        'An addon to get debrid results from AnimeTosho which mirrors most results from Nyaa.si and TokyoTosho.',
       OPTIONS: options,
       SUPPORTED_STREAM_TYPES: [constants.DEBRID_STREAM_TYPE],
       SUPPORTED_RESOURCES: supportedResources,
@@ -54,14 +79,9 @@ export class AnimeToshoPreset extends TorznabPreset {
     const animetoshoUrl = this.METADATA.URL;
 
     const config = {
+      ...this.getBaseConfig(userData, services),
       url: animetoshoUrl,
       apiPath: '/api',
-      tmdbAccessToken: userData.tmdbAccessToken,
-      tmdbApiKey: userData.tmdbApiKey,
-      services: services.map((service) => ({
-        id: service,
-        credential: this.getServiceCredential(service, userData),
-      })),
     };
 
     const configString = this.base64EncodeJSON(config);

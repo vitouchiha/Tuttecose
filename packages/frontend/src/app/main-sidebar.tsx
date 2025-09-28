@@ -221,18 +221,26 @@ export function MainSidebar() {
               }}
             >
               <img
-                src={user.userData.addonLogo || '/logo.png'}
+                src={
+                  status?.settings.alternateDesign
+                    ? status?.tag.includes('nightly')
+                      ? '/mini-nightly-white.png'
+                      : '/mini-stable-white.png'
+                    : user.userData.addonLogo || '/logo.png'
+                }
                 alt="logo"
                 className="w-22.5 h-15"
               />
             </div>
-            <span className="text-xs text-gray-500">
-              {status
-                ? status.tag.includes('nightly')
-                  ? 'nightly'
-                  : status.tag
-                : ''}
-            </span>
+            {status?.settings.alternateDesign === false && (
+              <span className="text-xs text-gray-500">
+                {status
+                  ? status.tag.includes('nightly')
+                    ? 'nightly'
+                    : status.tag
+                  : ''}
+              </span>
+            )}
           </div>
           <VerticalMenu
             className="px-4"

@@ -1,5 +1,5 @@
-import { UserData } from '../db';
-import { BaseFormatter } from './base';
+import { UserData } from '../db/schemas.js';
+import { BaseFormatter } from './base.js';
 
 export class TorrentioFormatter extends BaseFormatter {
   constructor(userData: UserData) {
@@ -78,6 +78,27 @@ export class LightGDriveFormatter extends BaseFormatter {
 {stream.visualTags::exists["📺 {stream.visualTags::join(' • ')} "||""]}{stream.audioTags::exists["🎧 {stream.audioTags::join(' • ')} "||""]}{stream.audioChannels::exists["🔊 {stream.audioChannels::join(' • ')}"||""]}
 {stream.size::>0["📦 {stream.size::bytes} "||""]}{stream.folderSize::>0["/ 📦 {stream.folderSize::bytes}"||""]}{stream.duration::>0["⏱️ {stream.duration::time} "||""]}{stream.age::exists["📅 {stream.age} "||""]}{stream.indexer::exists["🔍 {stream.indexer}"||""]}
 {stream.languageEmojis::exists["🌐 {stream.languageEmojis::join(' / ')}"||""]}
+`,
+      },
+      userData
+    );
+  }
+}
+
+export class PrismFormatter extends BaseFormatter {
+  constructor(userData: UserData) {
+    super(
+      {
+        name: `
+{stream.resolution::exists["{stream.resolution::replace('2160p', '🔥4K UHD')::replace('1440p','✨ QHD')::replace('1080p','🚀 FHD')::replace('720p','💿 HD')::replace('576p','💩 Low Quality')::replace('480p','💩 Low Quality')::replace('360p','💩 Low Quality')::replace('240p','💩 Low Quality')::replace('144p','💩 Low Quality')}"||""]}
+`,
+        description: `
+{stream.title::exists["🎬 {stream.title::title} "||""]}{stream.year::exists["({stream.year}) "||""]}{stream.season::>=0["🍂 S"||""]}{stream.season::<=9["0"||""]}{stream.season::>0["{stream.season} "||""]}{stream.episode::>=0["🎞️ E"||""]}{stream.episode::<=9["0"||""]}{stream.episode::>0["{stream.episode} "||""]}{stream.regexMatched::exists["🎚️ {stream.regexMatched} "||""]}
+{stream.quality::exists["🎥 {stream.quality} "||""]}{stream.visualTags::exists["📺 {stream.visualTags::join(' | ')} "||""]}{stream.encode::exists["🎞️ {stream.encode} "||""]}{stream.duration::>0["⏱️ {stream.duration::time} "||""]}
+{stream.audioTags::exists["🎧 {stream.audioTags::join(' | ')} "||""]}{stream.audioChannels::exists["🔊 {stream.audioChannels::join(' | ')} "||""]}{stream.languages::exists["🗣️ {stream.languageEmojis::join(' / ')}"||""]}
+{stream.size::>0["📦 {stream.size::bytes} "||""]}{stream.folderSize::>0["/ 📦 {stream.folderSize::bytes} "||""]}{service.cached::isfalse::or::stream.type::=p2p::and::stream.seeders::>0["🌱 {stream.seeders} "||""]}{stream.type::=usenet::and::stream.age::exists["📅 {stream.age} "||""]}{stream.releaseGroup::exists["🏷️ {stream.releaseGroup} "||""]}{stream.indexer::exists["📡 {stream.indexer} "||""]}
+{service.cached::istrue["⚡Ready "||""]}{service.cached::isfalse["❌ Not Ready "||""]}{service.id::exists["({service.shortName}) "||""]}{stream.library::istrue["📌 Library "||""]}{stream.type::=Usenet["📰 Usenet "||""]}{stream.type::=p2p["⚠️ P2P "||""]}{stream.type::=http["💻 Web Link "||""]}{stream.type::=youtube["▶️ Youtube "||""]}{stream.type::=live["📺 Live "||""]}{stream.proxied::istrue["🔒 Proxied "||"🔓 Not Proxied "]}🔍{addon.name} 
+{stream.message::exists["ℹ️ {stream.message}"||""]}
 `,
       },
       userData

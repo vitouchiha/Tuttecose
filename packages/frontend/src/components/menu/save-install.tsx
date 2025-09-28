@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { TextInput } from '@/components/ui/text-input';
-import { useUserData } from '@/context/userData';
+import { applyMigrations, useUserData } from '@/context/userData';
 import { UserConfigAPI } from '@/services/api';
 import { PageWrapper } from '@/components/shared/page-wrapper';
 import { Alert } from '@/components/ui/alert';
@@ -28,45 +28,6 @@ import {
   useConfirmationDialog,
 } from '../shared/confirmation-dialog';
 import { UserData } from '@aiostreams/core';
-
-function applyMigrations(config: any): UserData {
-  if (
-    config.deduplicator &&
-    typeof config.deduplicator.multiGroupBehaviour === 'string'
-  ) {
-    switch (config.deduplicator.multiGroupBehaviour as string) {
-      case 'remove_uncached':
-        config.deduplicator.multiGroupBehaviour = 'aggressive';
-        break;
-      case 'remove_uncached_same_service':
-        config.deduplicator.multiGroupBehaviour = 'conservative';
-        break;
-      case 'remove_nothing':
-        config.deduplicator.multiGroupBehaviour = 'keep_all';
-        break;
-    }
-  }
-  if (config.titleMatching?.matchYear) {
-    config.yearMatching = {
-      enabled: true,
-      tolerance: config.titleMatching.yearTolerance
-        ? config.titleMatching.yearTolerance
-        : 1,
-      requestTypes: config.titleMatching.requestTypes ?? [],
-      addons: config.titleMatching.addons ?? [],
-    };
-    delete config.titleMatching.matchYear;
-  }
-
-  if (Array.isArray(config.groups)) {
-    config.groups = {
-      enabled: config.disableGroups ? false : true,
-      groupings: config.groups,
-      behaviour: 'parallel',
-    };
-  }
-  return config;
-}
 
 export function SaveInstallMenu() {
   return (
@@ -248,6 +209,7 @@ function Content() {
           ? undefined
           : userData.tmdbAccessToken,
         tmdbApiKey: filterCredentialsInExport ? undefined : userData.tmdbApiKey,
+        tvdbApiKey: filterCredentialsInExport ? undefined : userData.tvdbApiKey,
         rpdbApiKey: filterCredentialsInExport ? undefined : userData.rpdbApiKey,
         services: userData?.services?.map((service) => ({
           ...service,
