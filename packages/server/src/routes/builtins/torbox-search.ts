@@ -3,6 +3,7 @@ import {
   createLogger,
   TorBoxSearchAddon,
   TorBoxSearchAddonError,
+  fromUrlSafeBase64,
 } from '@aiostreams/core';
 import { createResponse } from '../../utils/responses.js';
 const router: Router = Router();
@@ -13,14 +14,14 @@ router.get(
   '{/:encodedConfig}/manifest.json',
   async (req: Request, res: Response, next: NextFunction) => {
     const { encodedConfig } = req.params;
-
-    const config = encodedConfig
-      ? JSON.parse(Buffer.from(encodedConfig, 'base64').toString('utf-8'))
-      : undefined;
-
     try {
-      const manifest = config
-        ? new TorBoxSearchAddon(config, req.userIp).getManifest()
+      const manifest = encodedConfig
+        ? new TorBoxSearchAddon(
+            encodedConfig
+              ? JSON.parse(fromUrlSafeBase64(encodedConfig))
+              : undefined,
+            req.userIp
+          ).getManifest()
         : TorBoxSearchAddon.getManifest();
       res.json(manifest);
     } catch (error) {
@@ -45,12 +46,14 @@ router.get(
   '/:encodedConfig/stream/:type/:id.json',
   async (req: Request, res: Response, next: NextFunction) => {
     const { encodedConfig, type, id } = req.params;
-    const config = JSON.parse(
-      Buffer.from(encodedConfig, 'base64').toString('utf-8')
-    );
 
     try {
-      const addon = new TorBoxSearchAddon(config, req.userIp);
+      const addon = new TorBoxSearchAddon(
+        encodedConfig
+          ? JSON.parse(fromUrlSafeBase64(encodedConfig))
+          : undefined,
+        req.userIp
+      );
       const streams = await addon.getStreams(type as any, id);
       res.json({
         streams: streams,

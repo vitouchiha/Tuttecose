@@ -347,7 +347,7 @@ export const Env = cleanEnv(process.env, {
     desc: 'Redis URI for the addon',
   }),
   REDIS_TIMEOUT: num({
-    default: 500,
+    default: 5000,
     desc: 'Redis timeout for the addon',
   }),
   ADDON_PROXY: urlOrUrlList({
@@ -1600,6 +1600,15 @@ export const Env = cleanEnv(process.env, {
   BUILTIN_DEBRID_PLAYBACK_LINK_CACHE_TTL: num({
     default: 60 * 60, // 1 hour
     desc: 'Builtin Debrid playback link cache TTL',
+  }),
+  BUILTIN_PLAYBACK_LINK_STORE: str({
+    choices: ['redis', 'sql'],
+    default: 'sql',
+    desc: 'Builtin Debrid playback link store',
+  }),
+  BUILTIN_PLAYBACK_LINK_VALIDITY: num({
+    default: 1 * 24 * 60 * 60, // 1 day
+    desc: 'Builtin Debrid playback link validity',
   }),
   BUILTIN_SCRAPE_WITH_ALL_TITLES: boolOrList({
     default: false,

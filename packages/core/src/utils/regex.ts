@@ -4,7 +4,11 @@ import { getSimpleTextHash } from './crypto.js';
 import { createLogger } from './logger.js';
 
 const DEFAULT_TIMEOUT = 1000; // 1 second timeout
-const regexCache = Cache.getInstance<string, RegExp>('regexCache', 1_000, true);
+const regexCache = Cache.getInstance<string, RegExp>(
+  'regexCache',
+  1_000,
+  'memory'
+);
 const resultCache = Cache.getInstance<string, boolean>(
   'regexResultCache',
   1_000_000

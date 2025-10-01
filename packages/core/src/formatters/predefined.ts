@@ -90,7 +90,7 @@ export class PrismFormatter extends BaseFormatter {
     super(
       {
         name: `
-{stream.resolution::exists["{stream.resolution::replace('2160p', '🔥4K UHD')::replace('1440p','✨ QHD')::replace('1080p','🚀 FHD')::replace('720p','💿 HD')::replace('576p','💩 Low Quality')::replace('480p','💩 Low Quality')::replace('360p','💩 Low Quality')::replace('240p','💩 Low Quality')::replace('144p','💩 Low Quality')}"||""]}
+{stream.resolution::exists["{stream.resolution::replace('2160p', '🔥4K UHD')::replace('1440p','✨ QHD')::replace('1080p','🚀 FHD')::replace('720p','💿 HD')::replace('576p','💩 Low Quality')::replace('480p','💩 Low Quality')::replace('360p','💩 Low Quality')::replace('240p','💩 Low Quality')::replace('144p','💩 Low Quality')}"||"💩 Unknown"]}
 `,
         description: `
 {stream.title::exists["🎬 {stream.title::title} "||""]}{stream.year::exists["({stream.year}) "||""]}{stream.season::>=0["🍂 S"||""]}{stream.season::<=9["0"||""]}{stream.season::>0["{stream.season} "||""]}{stream.episode::>=0["🎞️ E"||""]}{stream.episode::<=9["0"||""]}{stream.episode::>0["{stream.episode} "||""]}{stream.regexMatched::exists["🎚️ {stream.regexMatched} "||""]}

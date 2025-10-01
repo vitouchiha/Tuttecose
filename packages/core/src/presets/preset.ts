@@ -8,7 +8,7 @@ import {
   Addon,
 } from '../db/index.js';
 import { StreamParser } from '../parser/index.js';
-import { Env, ServiceId, constants } from '../utils/index.js';
+import { Env, ServiceId, constants, toUrlSafeBase64 } from '../utils/index.js';
 /**
  *
  * What modifications are needed for each preset:
@@ -143,19 +143,17 @@ export abstract class Preset {
    */
   protected static base64EncodeJSON(
     json: any,
-    urlEncode: boolean = false, // url encode the string
-    makeUrlSafe: boolean = false // replace + with -, / with _ and = with nothing
+    mode: 'urlEncode' | 'urlSafe' | 'default' = 'default'
   ) {
-    let encoded = Buffer.from(JSON.stringify(json)).toString('base64');
-    if (makeUrlSafe) {
-      encoded = encoded
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-    } else if (urlEncode) {
-      encoded = encodeURIComponent(encoded);
+    let jsonStr = JSON.stringify(json);
+    switch (mode) {
+      case 'urlEncode':
+        return encodeURIComponent(Buffer.from(jsonStr).toString('base64'));
+      case 'urlSafe':
+        return toUrlSafeBase64(jsonStr);
+      case 'default':
+        return Buffer.from(jsonStr).toString('base64');
     }
-    return encoded;
   }
 
   protected static urlEncodeJSON(json: any) {

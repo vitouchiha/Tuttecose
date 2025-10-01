@@ -10,37 +10,18 @@ import { genSalt, hash, compare } from 'bcrypt';
 import { deflateSync, inflateSync } from 'zlib';
 import { Env } from './index.js';
 import { createLogger } from './logger.js';
-
+import { fromUrlSafeBase64, toUrlSafeBase64 } from './general.js';
 const logger = createLogger('crypto');
 
 const saltRounds = 10;
 
-function base64UrlSafe(data: string): string {
-  return Buffer.from(data)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
-function fromUrlSafeBase64(data: string): string {
-  // Add padding if needed
-  const padding = data.length % 4;
-  const paddedData = padding ? data + '='.repeat(4 - padding) : data;
-
-  return Buffer.from(
-    paddedData.replace(/-/g, '+').replace(/_/g, '/'),
-    'base64'
-  ).toString('utf-8');
-}
-
-const compressData = (data: string): Buffer => {
+export const compressData = (data: string): Buffer => {
   return deflateSync(Buffer.from(data, 'utf-8'), {
     level: 9,
   });
 };
 
-const decompressData = (data: Buffer): string => {
+export const decompressData = (data: Buffer): string => {
   return inflateSync(data).toString('utf-8');
 };
 
@@ -116,7 +97,7 @@ export function encryptString(data: string, secretKey?: Buffer): Response {
     const { iv, data: encrypted } = encryptData(secretKey, compressed);
     return {
       success: true,
-      data: base64UrlSafe(
+      data: toUrlSafeBase64(
         JSON.stringify({ iv, encrypted, type: 'aioEncrypt' })
       ),
       error: null,

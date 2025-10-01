@@ -365,11 +365,11 @@ export async function validateConfig(
     }
   }
 
-  if (
-    config.dynamicAddonFetching?.condition &&
-    config.dynamicAddonFetching.enabled
-  ) {
+  if (config.dynamicAddonFetching?.enabled) {
     try {
+      if (!config.dynamicAddonFetching.condition) {
+        throw new Error('Missing condition');
+      }
       await ExitConditionEvaluator.testEvaluate(
         config.dynamicAddonFetching.condition
       );

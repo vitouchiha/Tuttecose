@@ -1,6 +1,19 @@
 import { z } from 'zod';
-import { constants, createLogger, BuiltinServiceId } from '../utils/index.js';
-import { DebridFile, DebridDownload } from './base.js';
+import {
+  constants,
+  createLogger,
+  BuiltinServiceId,
+  Env,
+  Cache,
+  getSimpleTextHash,
+  encryptString,
+} from '../utils/index.js';
+import {
+  DebridFile,
+  DebridDownload,
+  PlaybackInfo,
+  ServiceAuth,
+} from './base.js';
 import { normaliseTitle, titleMatch } from '../parser/utils.js';
 
 const logger = createLogger('debrid');
@@ -295,4 +308,30 @@ export function isVideoFile(file: DebridFile): boolean {
     file.mimeType?.includes('video') ||
     videoExtensions.some((ext) => file.name?.endsWith(ext) ?? false)
   );
+}
+
+export const pbiCache = () => {
+  const prefix = 'pbi';
+  if (Env.REDIS_URI && Env.BUILTIN_PLAYBACK_LINK_STORE === 'redis') {
+    return Cache.getInstance<string, PlaybackInfo>(
+      prefix,
+      1_000_000_000,
+      'redis'
+    );
+  }
+  return Cache.getInstance<string, PlaybackInfo>(prefix, 1_000_000_000, 'sql');
+};
+
+export function generatePlaybackUrl(
+  storeAuth: ServiceAuth,
+  playbackInfo: PlaybackInfo,
+  filename: string
+) {
+  const encryptedStoreAuth = encryptString(JSON.stringify(storeAuth));
+  if (!encryptedStoreAuth.success) {
+    throw new Error('Failed to encrypt store auth');
+  }
+  const playbackId = getSimpleTextHash(JSON.stringify(playbackInfo));
+  pbiCache().set(playbackId, playbackInfo, Env.BUILTIN_PLAYBACK_LINK_VALIDITY);
+  return `${Env.BASE_URL}/api/v1/debrid/playback/${encryptedStoreAuth.data}/${playbackId}/${encodeURIComponent(filename)}`;
 }

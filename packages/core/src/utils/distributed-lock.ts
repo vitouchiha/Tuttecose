@@ -108,12 +108,19 @@ export class DistributedLock {
       return { result, cached: false };
     }
 
+    // Waiter logic
     return new Promise((resolve, reject) => {
       let timeoutId: NodeJS.Timeout;
 
-      const subscriber = (message: string) => {
+      const cleanup = () => {
         clearTimeout(timeoutId);
-        this.subRedis!.unsubscribe(doneChannel);
+        this.subRedis!.unsubscribe(doneChannel).catch((e) =>
+          logger.error(`Error during unsubscribe: ${e.message}`)
+        );
+      };
+
+      const subscriber = (message: string) => {
+        cleanup();
         const storedResult: StoredResult<T> = JSON.parse(message);
         if (storedResult.error) {
           logger.warn(
@@ -126,14 +133,34 @@ export class DistributedLock {
         }
       };
 
-      this.subRedis!.subscribe(doneChannel, subscriber).catch(reject);
-
-      timeoutId = setTimeout(() => {
-        this.subRedis!.unsubscribe(doneChannel);
+      const onTimeout = () => {
+        cleanup();
         const errorMessage = `Timed out waiting for redis lock on key: ${key}`;
         logger.error(errorMessage);
         reject(new Error(errorMessage));
-      }, timeout);
+      };
+
+      this.subRedis!.subscribe(doneChannel, subscriber)
+        .then(() => {
+          timeoutId = setTimeout(onTimeout, timeout);
+          // Double-check the lock's existence to handle race conditions.
+          this.redis!.get(redisKey)
+            .then((lockValue) => {
+              if (lockValue === null) {
+                logger.warn(
+                  `Lock for key ${key} was released before subscription completed. Timing out.`
+                );
+                onTimeout();
+              }
+            })
+            .catch((err) => {
+              cleanup();
+              reject(err);
+            });
+        })
+        .catch((err) => {
+          reject(err);
+        });
     });
   }
 

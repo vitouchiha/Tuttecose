@@ -111,28 +111,34 @@ export class StremThruInterface implements DebridService {
           })
         );
 
-        // Flatten all items from all batches
         const allItems = batchResults.flat();
 
-        for (const item of allItems) {
-          const download: DebridDownload = {
-            id: -1,
-            hash: item.hash,
-            status: item.status,
-            size: item.files.reduce((acc, file) => acc + file.size, 0),
-            files: item.files.map((file) => ({
-              name: file.name,
-              size: file.size,
-              index: file.index,
-            })),
-          };
-          newResults.push(download);
-          StremThruInterface.checkCache.set(
-            `${this.serviceName}:${getSimpleTextHash(item.hash)}`,
-            download,
-            Env.BUILTIN_DEBRID_INSTANT_AVAILABILITY_CACHE_TTL
-          );
-        }
+        newResults = allItems.map((item) => ({
+          id: -1,
+          hash: item.hash,
+          status: item.status,
+          size: item.files.reduce((acc, file) => acc + file.size, 0),
+          files: item.files.map((file) => ({
+            name: file.name,
+            size: file.size,
+            index: file.index,
+          })),
+        }));
+
+        newResults.forEach((item) => {
+          StremThruInterface.checkCache
+            .set(
+              `${this.serviceName}:${getSimpleTextHash(item.hash!)}`,
+              item,
+              Env.BUILTIN_DEBRID_INSTANT_AVAILABILITY_CACHE_TTL
+            )
+            .catch((err) => {
+              logger.error(
+                `Failed to cache item ${item.hash} in the background:`,
+                err
+              );
+            });
+        });
       } catch (error) {
         if (error instanceof StremThruError) {
           throw convertStremThruError(error);

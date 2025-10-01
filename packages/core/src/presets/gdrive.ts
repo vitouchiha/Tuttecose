@@ -188,15 +188,18 @@ export class GDrivePreset extends Preset {
         );
       }
     }
-    const config = this.base64EncodeJSON({
-      refreshToken: options.refreshToken,
-      metadataSource: options.metadataSource || 'imdb',
-      includeAudioFiles: options.includeAudioFiles ?? false,
-      tmdbReadAccessToken:
-        options.metadataSource === 'tmdb'
-          ? userData.tmdbAccessToken || Env.TMDB_ACCESS_TOKEN
-          : undefined,
-    });
+    const config = this.base64EncodeJSON(
+      {
+        refreshToken: options.refreshToken,
+        metadataSource: options.metadataSource || 'imdb',
+        includeAudioFiles: options.includeAudioFiles ?? false,
+        tmdbReadAccessToken:
+          options.metadataSource === 'tmdb'
+            ? userData.tmdbAccessToken || Env.TMDB_ACCESS_TOKEN
+            : undefined,
+      },
+      'urlSafe'
+    );
     return `${this.METADATA.URL}/${config}/manifest.json`;
   }
 }

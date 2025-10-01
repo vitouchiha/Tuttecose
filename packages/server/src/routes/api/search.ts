@@ -13,7 +13,8 @@ import {
   decryptString,
   createLogger,
   ApiTransformer,
-  ApiSearchResponseData,
+  SearchApiResponseData,
+  SearchApiResultField,
 } from '@aiostreams/core';
 import { streamApiRateLimiter } from '../../middlewares/ratelimit.js';
 import { ApiResponse, createResponse } from '../../utils/responses.js';
@@ -24,20 +25,32 @@ const logger = createLogger('server');
 
 router.use(streamApiRateLimiter);
 
+const SearchApiRequestSchema = z.object({
+  type: z.string(),
+  id: z.string(),
+  requiredFields: z
+    .union([z.array(SearchApiResultField), SearchApiResultField])
+    .optional()
+    .default([])
+    .transform((val) => {
+      if (Array.isArray(val)) {
+        return val;
+      }
+      return [val];
+    }),
+});
+
 router.get(
   '/',
   async (
     req: Request,
-    res: Response<ApiResponse<ApiSearchResponseData>>,
+    res: Response<ApiResponse<SearchApiResponseData>>,
     next
   ) => {
     try {
-      const { type, id } = z
-        .object({
-          type: z.string(),
-          id: z.string(),
-        })
-        .parse(req.query);
+      const { type, id, requiredFields } = SearchApiRequestSchema.parse(
+        req.query
+      );
       let encodedUserData: string | undefined = z
         .string()
         .optional()
@@ -161,25 +174,17 @@ router.get(
       const transformer = new ApiTransformer(userData);
 
       res.status(200).json(
-        createResponse<ApiSearchResponseData>({
+        createResponse<SearchApiResponseData>({
           success: true,
           data: await transformer.transformStreams(
             await (
               await new AIOStreams(userData).initialise()
-            ).getStreams(id, type)
+            ).getStreams(id, type),
+            requiredFields
           ),
         })
       );
     } catch (error) {
-      if (error instanceof ZodError) {
-        next(
-          new APIError(
-            constants.ErrorCode.BAD_REQUEST,
-            undefined,
-            formatZodError(error)
-          )
-        );
-      }
       next(error);
     }
   }

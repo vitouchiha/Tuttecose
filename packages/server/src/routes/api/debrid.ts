@@ -8,6 +8,12 @@ import {
   PlaybackInfoSchema,
   getDebridService,
   ServiceAuthSchema,
+  fromUrlSafeBase64,
+  Cache,
+  PlaybackInfo,
+  ServiceAuth,
+  decryptString,
+  pbiCache,
 } from '@aiostreams/core';
 import { ZodError } from 'zod';
 import { StaticFiles } from '../../app.js';
@@ -24,24 +30,38 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 router.get(
-  '/playback/:encodedStoreAuth/:encodedPlaybackInfo/:filename',
+  '/playback/:encryptedStoreAuth/:playbackId/:filename',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { encodedStoreAuth, encodedPlaybackInfo, filename } = req.params;
-      if (!encodedStoreAuth || !encodedPlaybackInfo || !filename) {
+      const { encryptedStoreAuth, playbackId, filename } = req.params;
+      if (!playbackId || !filename) {
         throw new APIError(
           constants.ErrorCode.BAD_REQUEST,
           undefined,
-          'Store auth, playback info and filename are required'
+          'Encrypted store auth, playback info and filename are required'
         );
       }
-      const playbackInfo = PlaybackInfoSchema.parse(
-        JSON.parse(Buffer.from(encodedPlaybackInfo, 'base64').toString('utf-8'))
-      );
+
+      const decryptedStoreAuth = decryptString(encryptedStoreAuth);
+      if (!decryptedStoreAuth.success) {
+        throw new APIError(
+          constants.ErrorCode.BAD_REQUEST,
+          undefined,
+          'Failed to decrypt store auth'
+        );
+      }
 
       const storeAuth = ServiceAuthSchema.parse(
-        JSON.parse(Buffer.from(encodedStoreAuth, 'base64').toString('utf-8'))
+        JSON.parse(decryptedStoreAuth.data)
       );
+      const playbackInfo = await pbiCache().get(playbackId);
+      if (!playbackInfo) {
+        throw new APIError(
+          constants.ErrorCode.BAD_REQUEST,
+          undefined,
+          'Playback info not found'
+        );
+      }
 
       const debridInterface = getDebridService(
         storeAuth.id,
@@ -63,7 +83,10 @@ router.get(
               staticFile = StaticFiles.UNAVAILABLE_FOR_LEGAL_REASONS;
               break;
             case 'STORE_LIMIT_EXCEEDED':
-              staticFile = StaticFiles.CONTENT_PROXY_LIMIT_REACHED;
+              staticFile = StaticFiles.STORE_LIMIT_EXCEEDED;
+              break;
+            case 'PAYMENT_REQUIRED':
+              staticFile = StaticFiles.PAYMENT_REQUIRED;
               break;
             case 'FORBIDDEN':
               staticFile = StaticFiles.FORBIDDEN;

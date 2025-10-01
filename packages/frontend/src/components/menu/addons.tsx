@@ -1256,10 +1256,19 @@ function AddonFetchingBehaviorCard() {
     default:
       'Fetch from all addons simultaneously and wait for all addons to finish fetching before returning results.',
     groups:
-      'Organize addons into groups. Streams are fetched based on group conditions, either sequentially or in parallel.',
+      'Organise addons into groups with conditions. Each group can be evaluated based on results from previous groups. Read the [Wiki](https://github.com/Viren070/AIOStreams/wiki/Groups) for more information.',
     dynamic:
-      'Fetch from all addons at once, and exit once a specified condition is met.',
+      'All addons start fetching at the same time. As soon as any addon returns results, the exit condition is evaluated. If the condition is met, results are returned immediately and any remaining addon results are ignored.',
   };
+
+  const placeholderExitConditions = [
+    'count(resolution(totalStreams, "2160p")) > 0 or totalTimeTaken > 5000',
+    "queryType == 'anime' ? (count(resolution(totalStreams, '1080p')) > 0 or totalTimeTaken > 5000) : false",
+    "'addon' in queriedAddons and (totalTimeTaken >= 6000 or count(totalStreams) >= 5)",
+    "count(seeders(size(totalStreams, '5GB', '20GB'), 50)) > 0",
+    "queryType == 'movie' ? count(cached(resolution(totalStreams, '2160p'))) > 0 : count(resolution(totalStreams, '1080p')) >= 2",
+    "count(cached(quality(totalStreams, 'Bluray REMUX', 'Bluray', 'WEB-DL'))) > 0",
+  ];
 
   return (
     <SettingsCard
@@ -1272,8 +1281,8 @@ function AddonFetchingBehaviorCard() {
         onValueChange={handleModeChange}
         options={[
           { label: 'Default', value: 'default' },
-          { label: 'Groups', value: 'groups' },
           { label: 'Dynamic', value: 'dynamic' },
+          { label: 'Groups', value: 'groups' },
         ]}
       />
 
@@ -1301,8 +1310,8 @@ function AddonFetchingBehaviorCard() {
             ]}
             help={
               userData.groups?.behaviour === 'sequential'
-                ? 'Streams are fetched from the first group only to begin with. If the condition for the next group is met, streams are fetched from the next group, and so on.'
-                : 'Streams are fetched from all groups at the same time. When a condition is not met, results from its group onwards are simply not shown.'
+                ? 'Sequential: Start with group 1. Only fetch from group 2 if its condition evaluates to true based on group 1\'s results (e.g., "count(totalStreams) < 4"). Continue this pattern for subsequent groups.'
+                : "Parallel: Begin fetching from all groups simultaneously. When group 1's results arrive, evaluate group 2's condition. If true, wait for group 2's results; if false, return results without waiting."
             }
           />
 
@@ -1382,6 +1391,11 @@ function AddonFetchingBehaviorCard() {
       {mode === 'dynamic' && (
         <TextInput
           label="Exit Condition"
+          placeholder={
+            placeholderExitConditions[
+              Math.floor(Math.random() * placeholderExitConditions.length)
+            ]
+          }
           value={userData.dynamicAddonFetching?.condition ?? ''}
           onValueChange={(value) => {
             setUserData((prev) => ({
@@ -1392,7 +1406,42 @@ function AddonFetchingBehaviorCard() {
               },
             }));
           }}
-          help="When this condition is met, no more addons will be fetched from"
+          help={
+            <p>
+              Write the condition using{' '}
+              <a
+                href="https://github.com/Viren070/AIOStreams/wiki/Stream-Expression-Language"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[--brand] hover:underline"
+              >
+                Stream Expression Language (SEL)
+              </a>
+              . The following variables are available:
+              <ul className="list-disc list-inside space-y-1 ml-2 mt-2">
+                <li>
+                  <code>totalStreams</code>: The total number of streams
+                </li>
+                <li>
+                  <code>totalTimeTaken</code>: The total time taken to fetch the
+                  streams
+                </li>
+                <li>
+                  <code>queryType</code>: The type of query e.g. 'movie',
+                  'series', or 'anime'
+                </li>
+                <li>
+                  <code>queriedAddons</code>: The addons that have been queried.
+                  Tip: use the <code>in</code> operator to check if a specific
+                  addon has been queried.
+                </li>
+                <li>
+                  <code>allAddons</code>: All addons that were intended to be
+                  used for that query.
+                </li>
+              </ul>
+            </p>
+          }
         />
       )}
     </SettingsCard>

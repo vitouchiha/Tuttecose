@@ -52,7 +52,7 @@ const shuffleCache = Cache.getInstance<string, MetaPreview[]>('shuffle');
 const precacheCache = Cache.getInstance<string, boolean>(
   'precache',
   undefined,
-  true
+  'memory'
 );
 
 export interface AIOStreamsError {

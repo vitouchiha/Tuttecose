@@ -13,7 +13,7 @@ const logger = createLogger('parser');
 const parseCache = Cache.getInstance<string, ParseResult | null>(
   'ptt',
   10000,
-  true
+  'memory'
 );
 
 class PTT {

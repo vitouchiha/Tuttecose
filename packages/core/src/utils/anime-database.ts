@@ -9,6 +9,7 @@ import {
   ID_TYPES,
   DistributedLock,
   Env,
+  withRetry,
 } from './index.js';
 import { createWriteStream } from 'fs';
 import { createLogger } from './logger.js';
@@ -699,8 +700,8 @@ export class AnimeDatabase {
   private async refreshDataSource(
     source: (typeof DATA_SOURCES)[keyof typeof DATA_SOURCES]
   ): Promise<void> {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
+    return withRetry(
+      async () => {
         const remoteEtag = await this.fetchRemoteEtag(source.url);
         const localEtag = await this.readLocalFile(source.etagPath);
 
@@ -722,13 +723,11 @@ export class AnimeDatabase {
           logger.info(`[${source.name}] Source is up to date.`);
         }
         await this[source.loader]();
-        break;
-      } catch (error) {
-        logger.error(
-          `[${source.name}] Failed to refresh: ${error}. Will retry ${attempt === 0 ? '1 more time' : 'on next refresh interval'}.`
-        );
+      },
+      {
+        getContext: () => source.name,
       }
-    }
+    );
   }
 
   private async loadFribbMappings(): Promise<void> {

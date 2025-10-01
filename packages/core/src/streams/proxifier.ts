@@ -20,8 +20,18 @@ class Proxifier {
     if (stream.proxied) {
       return false;
     }
-    const streamUrl = new URL(stream.url);
-    const proxyUrl = new URL(proxy.url);
+    let streamUrl: URL;
+    let proxyUrl: URL;
+    try {
+      streamUrl = new URL(stream.url);
+      proxyUrl = new URL(proxy.url);
+    } catch (error) {
+      logger.error(
+        `URL parsing failed somehow: stream: ${JSON.stringify(stream)}, proxy: ${JSON.stringify(proxy)}`
+      );
+      logger.error(error);
+      return false;
+    }
     if (
       streamUrl.host === proxyUrl.host &&
       // check for proxy endpoint for stremthru, not needed for mediaflow as all mediaflow links are proxied

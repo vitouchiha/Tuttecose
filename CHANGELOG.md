@@ -1,5 +1,52 @@
 # Changelog
 
+## [2.14.1](https://github.com/Viren070/AIOStreams/compare/v2.14.0...v2.14.1) (2025-09-30)
+
+
+### Features
+
+* add debug logs to ip middleware ([36d0464](https://github.com/Viren070/AIOStreams/commit/36d04644efaa1f808bcebd9735b97dcdae8e3b2b))
+* add use multiple instances option to built-in addons ([d400db8](https://github.com/Viren070/AIOStreams/commit/d400db8c40a42b77fdb62ddc1bf9444ccc5b3a24))
+* allow customising playback link validity and store ([a31c160](https://github.com/Viren070/AIOStreams/commit/a31c1600049d3f99d29d148108b8953b4eb40100))
+
+## [2.14.0](https://github.com/Viren070/AIOStreams/compare/v2.13.3...v2.14.0) (2025-09-29)
+
+
+### Features
+
+* add `allAddons` variable to dynamic exit condition and add placeholder exit conditions ([b7280a9](https://github.com/Viren070/AIOStreams/commit/b7280a97eb34fb0ea6660f563f263885a53e3244))
+* add `queriedAddons` and `queryType` to exit conditions and improve descriptions ([a09a03c](https://github.com/Viren070/AIOStreams/commit/a09a03c1ef7ff022a04510088d3ccefb52b5cfa0))
+* add dynamic fetching strategy with redesigned strategy card and fix parallel groups ([48dbadd](https://github.com/Viren070/AIOStreams/commit/48dbaddf67acd3c028f0218e7e61ba74ffcb71c7)), closes [#410](https://github.com/Viren070/AIOStreams/issues/410)
+* allow limiting certain addons to specific media types ([59e611a](https://github.com/Viren070/AIOStreams/commit/59e611aebbac7e3ac5b8f5773b74f208598d9c09))
+* **builtins:** add support for using alternative titles in scraping ([4f4b044](https://github.com/Viren070/AIOStreams/commit/4f4b04495b0d31b9292efe8598465356b160c8ad))
+* make redis store optional for rate limiting ([b47c293](https://github.com/Viren070/AIOStreams/commit/b47c293fd3e8a715277a2b8876a60de6a5c116ee))
+* **sel:** enable the `in` operator ([6a10f7c](https://github.com/Viren070/AIOStreams/commit/6a10f7c623b527e6c7dc9aff8927e002e6a504f8))
+* use urlsafe encoded configs, add requiredFields, adjust playback URL handling, and sql cache store. ([9a9d3d2](https://github.com/Viren070/AIOStreams/commit/9a9d3d2775965dca6854d98c78fb25ca2d622e12))
+
+
+### Bug Fixes
+
+* add debug logs to redirect handling and follow additional redirects ([5e3f6fb](https://github.com/Viren070/AIOStreams/commit/5e3f6fb188b65d8ecd536252baaf2377f5aaa0e7))
+* add error handling for URL parsing in Proxifier class ([6e0e6f5](https://github.com/Viren070/AIOStreams/commit/6e0e6f587bc2bebb865bf7b33608a1e5efd20304))
+* adjust key for metadata lock ([028e772](https://github.com/Viren070/AIOStreams/commit/028e77288b6e9c09e0d95941d29ee512473fe86d))
+* adjust lock, refactor retry operations, remove minimum length requirement for condition, increase max length for conditions to 3000 ([136ca58](https://github.com/Viren070/AIOStreams/commit/136ca58cea4cfea70811c41698e9ef610feb1087))
+* always validate dynamic addon fetching condition when enabled ([778bbf7](https://github.com/Viren070/AIOStreams/commit/778bbf7cc8d8e7acb338c876e9dfd113541116e4))
+* cache adjustments ([8772ab7](https://github.com/Viren070/AIOStreams/commit/8772ab706e5d15dc067db70bf2c622559e2952c6))
+* default catalogs to empty array to allow manifests without catalogs ([d5f4c93](https://github.com/Viren070/AIOStreams/commit/d5f4c9352183d547e84ff7dc95b7d4fc7adc3ec3))
+* fix filtering of null/undefined attributes ([5313969](https://github.com/Viren070/AIOStreams/commit/53139697f9ffd2593928fef1d0cf7eb0701d43b1))
+* handle unknown resolution in prism formatter ([97bd672](https://github.com/Viren070/AIOStreams/commit/97bd6728a8c1dda548e6dc50ed772cffc981e393))
+* handle zod errors gracefully ([60fd28c](https://github.com/Viren070/AIOStreams/commit/60fd28cd72804a3398fe38ae93721d8c0af6aa54))
+* improve error message for expression evaluation error ([37a9de3](https://github.com/Viren070/AIOStreams/commit/37a9de365743d1a4f7c2a847a3e69e50d3a2ee80))
+* improve releaseGroup regex ([#403](https://github.com/Viren070/AIOStreams/issues/403)) ([2c9c887](https://github.com/Viren070/AIOStreams/commit/2c9c887fae4662189e3bce8b07cbf5ef3158e280))
+* increase max length of group and dynamic addon fetching condition to 1500 ([f965b44](https://github.com/Viren070/AIOStreams/commit/f965b448d0d8fa420724aa09c2e4fc0d916a0973))
+* increase ttl in metadata lock ([b30810a](https://github.com/Viren070/AIOStreams/commit/b30810a5e08d6e886bb0e694a5ae2bad568e14b1))
+* **presets/mediafusion:** clean filename ([820a5e0](https://github.com/Viren070/AIOStreams/commit/820a5e0b064db1a0603467920b85cb5e2b3b5511))
+* **presets/more-like-this:** update manifest generation ([1ca7f55](https://github.com/Viren070/AIOStreams/commit/1ca7f55eae1a12b614cd9550b8f23f7ccaf800e5))
+* **presets/stremthru-store:** add Usenet stream type handling and info hash extraction ([aa3ae24](https://github.com/Viren070/AIOStreams/commit/aa3ae2478aa3ce632cb5bb782cd94c7ee5965d47))
+* **presets/torbox:** handle Usenet stream type in hash extraction ([967cff2](https://github.com/Viren070/AIOStreams/commit/967cff29ac5ffd5cc71b1ca94c9c61e940cf237a))
+* use correct cache key for tvdb token ([63aacd1](https://github.com/Viren070/AIOStreams/commit/63aacd1874c214bbb1e89220875745fb0136ab27))
+* use fetchAndProcessAddons instead of fetchFromAddon in dynamic fetch strategy ([b0cddfc](https://github.com/Viren070/AIOStreams/commit/b0cddfcc8f9ebad1ef39812deda7bdf3eae9807e))
+
 ## [2.13.3](https://github.com/Viren070/AIOStreams/compare/v2.13.2...v2.13.3) (2025-09-26)
 
 

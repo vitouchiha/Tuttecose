@@ -373,7 +373,7 @@ export const UserDataSchema = z.object({
   dynamicAddonFetching: z
     .object({
       enabled: z.boolean().optional(),
-      condition: z.string().min(1).max(1500).optional(),
+      condition: z.string().max(3000).optional(),
     })
     .optional(),
   groups: z
@@ -383,7 +383,7 @@ export const UserDataSchema = z.object({
         .array(
           z.object({
             addons: z.array(z.string().min(1)),
-            condition: z.string().min(1).max(1500),
+            condition: z.string().min(1).max(3000),
           })
         )
         .optional(),
@@ -488,6 +488,13 @@ export const TABLES = {
       expires_at BIGINT NOT NULL,
       result TEXT
     `,
+  cache: `
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `,
 };
 
 const strictManifestResourceSchema = z.object({
@@ -533,7 +540,7 @@ export const ManifestSchema = z
     types: z.array(z.string()),
     idPrefixes: z.array(z.string()).or(z.null()).optional(),
     resources: z.array(ManifestResourceSchema),
-    catalogs: z.array(ManifestCatalogSchema),
+    catalogs: z.array(ManifestCatalogSchema).optional().default([]),
     addonCatalogs: z.array(AddonCatalogDefinitionSchema).optional(),
     background: z.string().or(z.null()).optional(),
     logo: z.string().or(z.null()).optional(),

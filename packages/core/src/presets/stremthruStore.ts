@@ -40,6 +40,26 @@ class StremthruStoreStreamParser extends StremThruStreamParser {
     }
     return super.applyUrlModifications(url);
   }
+
+  protected getStreamType(
+    stream: Stream,
+    service: ParsedStream['service'],
+    currentParsedStream: ParsedStream
+  ): ParsedStream['type'] {
+    if (stream.name?.includes('Usenet')) {
+      return constants.USENET_STREAM_TYPE;
+    }
+    return super.getStreamType(stream, service, currentParsedStream);
+  }
+
+  protected getInfoHash(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): string | undefined {
+    return currentParsedStream.type !== 'usenet'
+      ? stream.behaviorHints?.bingeGroup?.match(/[a-fA-F0-9]{40}$/)?.[0]
+      : undefined;
+  }
 }
 
 export class StremthruStorePreset extends StremThruPreset {

@@ -63,13 +63,17 @@ class MediaFusionStreamParser extends StreamParser {
     stream: Stream,
     currentParsedStream: ParsedStream
   ): string | undefined {
+    const cleanFilename = (filename: string) => {
+      let cleaned = filename.replace(/\s+(mkv|mp4)$/i, '.$1');
+      return cleaned.replace(/(?<![\[\]\-/\(\)])\s+(?![\[\]\-/\(\)])/g, '.');
+    };
     const regex = this.getRegexForTextAfterEmojis(['📂']);
     const file = stream.description?.match(regex)?.[1];
     if (file && file.includes('┈➤')) {
-      return file.split('┈➤')[1].trim();
+      return cleanFilename(file.split('┈➤')[1].trim());
     }
     if (file) {
-      return file.trim();
+      return cleanFilename(file.trim());
     }
     if (
       stream.description?.includes('Update IMDb metadata') ||
@@ -517,8 +521,7 @@ export class MediaFusionPreset extends Preset {
         contribution_streams: options.contributorStreams ?? false,
         mdblist_config: null,
       },
-      false,
-      true
+      'urlSafe'
     );
 
     return encodedUserData;

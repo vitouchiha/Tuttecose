@@ -201,6 +201,23 @@ class StreamFetcher {
       }
 
       await new Promise<void>((resolve) => {
+        const queriedAddons: string[] = [];
+        const allAddons: string[] = Array.from(
+          new Set(addons.map((addon) => addon.name))
+        );
+        const presetProgress = addons.reduce(
+          (acc, addon) => {
+            const id = addon.preset.id;
+            const name = addon.name;
+            if (!acc[id]) {
+              acc[id] = { name, remaining: 0 };
+            }
+            acc[id].remaining++;
+            return acc;
+          },
+          {} as Record<string, { name: string; remaining: number }>
+        );
+
         let activePromises = addons.length;
         if (activePromises === 0) {
           resolve();
@@ -209,12 +226,23 @@ class StreamFetcher {
 
         const checkExit = async () => {
           const timeTaken = Date.now() - start;
-          const evaluator = new ExitConditionEvaluator(allStreams, timeTaken);
-          const shouldExit = await evaluator.evaluate(condition);
+          const evaluator = new ExitConditionEvaluator(
+            allStreams,
+            timeTaken,
+            queryType,
+            queriedAddons,
+            allAddons
+          );
 
+          const shouldExit = await evaluator.evaluate(condition);
+          logger.debug(`Evaluated exit condition`, {
+            shouldExit,
+            queriedAddons,
+          });
           if (shouldExit) {
             logger.info(
-              `Exit condition met with results from ${addons.length - activePromises} addons. (${activePromises} addons still fetching) Returning results.`
+              // subtract 1 because this function is awaited before activePromises is decremented
+              `Exit condition met with results from ${queriedAddons.length} addons. (${activePromises - 1} addons still fetching) Returning results.`
             );
             resolve();
           }
@@ -223,6 +251,15 @@ class StreamFetcher {
         addons.forEach((addon) => {
           fetchAndProcessAddons([addon])
             .then(async (result) => {
+              const progress = presetProgress[addon.preset.id];
+              progress.remaining--;
+              if (progress.remaining === 0) {
+                logger.debug(
+                  `All addons from preset ${progress.name} (${addon.preset.id}) have been queried. Pushing addon name to queriedAddons.`
+                );
+                queriedAddons.push(addon.name);
+              }
+
               allStreams.push(...result.streams);
               allErrors.push(...result.errors);
               if (result.statistics) {

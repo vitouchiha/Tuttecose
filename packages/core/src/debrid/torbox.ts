@@ -47,60 +47,18 @@ export class TorboxDebridService implements DebridService {
   }
 
   public async checkMagnets(magnets: string[], sid?: string) {
-    try {
-      return this.stremthru.checkMagnets(magnets, sid);
-    } catch (error) {
-      if (error instanceof StremThruError) {
-        throw new DebridError(error.message, {
-          statusCode: error.statusCode,
-          statusText: error.statusText,
-          code: error.code,
-          headers: error.headers,
-          body: error.body,
-          cause: 'cause' in error ? error.cause : undefined,
-        });
-      }
-      throw error;
-    }
+    return this.stremthru.checkMagnets(magnets, sid);
   }
 
   public async addMagnet(magnet: string): Promise<DebridDownload> {
-    try {
-      return this.stremthru.addMagnet(magnet);
-    } catch (error) {
-      if (error instanceof StremThruError) {
-        throw new DebridError(error.message, {
-          statusCode: error.statusCode,
-          statusText: error.statusText,
-          code: error.code,
-          headers: error.headers,
-          body: error.body,
-          cause: 'cause' in error ? error.cause : undefined,
-        });
-      }
-      throw error;
-    }
+    return this.stremthru.addMagnet(magnet);
   }
 
   public async generateTorrentLink(
     link: string,
     clientIp?: string
   ): Promise<string> {
-    try {
-      return this.stremthru.generateTorrentLink(link, clientIp);
-    } catch (error) {
-      if (error instanceof StremThruError) {
-        throw new DebridError(error.message, {
-          statusCode: error.statusCode,
-          statusText: error.statusText,
-          code: error.code,
-          headers: error.headers,
-          body: error.body,
-          cause: 'cause' in error ? error.cause : undefined,
-        });
-      }
-      throw error;
-    }
+    return this.stremthru.generateTorrentLink(link, clientIp);
   }
 
   public async checkNzbs(hashes: string[]): Promise<DebridDownload[]> {
@@ -164,68 +122,27 @@ export class TorboxDebridService implements DebridService {
 
       const allItems = batchResults.flat();
 
-      for (const item of allItems) {
-        const download: DebridDownload = {
-          id: -1,
-          hash: item.hash,
-          status: 'cached',
-          size: item.size,
-        };
+      newResults = allItems.map((item) => ({
+        id: -1,
+        hash: item.hash,
+        status: 'cached',
+        size: item.size,
+      }));
 
-        // cachedResults.push(download);
-        newResults.push(download);
-
-        if (item.hash) {
+      newResults
+        .filter((item) => item.hash)
+        .forEach((item) => {
           TorboxDebridService.instantAvailabilityCache.set(
-            getSimpleTextHash(item.hash),
-            download,
+            getSimpleTextHash(item.hash!),
+            item,
             Env.BUILTIN_DEBRID_INSTANT_AVAILABILITY_CACHE_TTL
           );
-        }
-      }
+        });
 
       return [...cachedResults, ...newResults];
     }
 
     return cachedResults;
-    // const data = await this.torboxApi.usenet.getUsenetCachedAvailability(
-    //   this.apiVersion,
-    //   {
-    //     hash: hashes.join(','),
-    //     format: 'list',
-    //   }
-    // );
-    // if (!data.data?.success) {
-    //   throw new DebridError(`Failed to check instant availability`, {
-    //     statusCode: data.metadata.status,
-    //     statusText: data.metadata.statusText,
-    //     code: 'UNKNOWN',
-    //     headers: data.metadata.headers,
-    //     body: data.data,
-    //     cause: data.data,
-    //     type: 'api_error',
-    //   });
-    // }
-    // if (!Array.isArray(data.data.data)) {
-    //   throw new DebridError(
-    //     'Invalid response from Torbox API. Expected array, got object',
-    //     {
-    //       statusCode: data.metadata.status,
-    //       statusText: data.metadata.statusText,
-    //       code: 'UNKNOWN',
-    //       headers: data.metadata.headers,
-    //       body: data.data,
-    //       cause: data.data,
-    //       type: 'api_error',
-    //     }
-    //   );
-    // }
-    // return data.data.data.map((item) => ({
-    //   id: -1,
-    //   status: 'cached',
-    //   name: item.name,
-    //   size: item.size,
-    // }));
   }
 
   public async addNzb(nzb: string, name: string): Promise<DebridDownload> {

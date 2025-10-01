@@ -116,7 +116,8 @@ export class TorrentClient {
   }
 
   static async #fetchMetadata(
-    torrent: UnprocessedTorrent
+    torrent: UnprocessedTorrent,
+    redirectCount: number = 0
   ): Promise<TorrentMetadata> {
     const { downloadUrl } = torrent;
     if (!downloadUrl) throw new Error('Download URL must be provided.');
@@ -138,7 +139,15 @@ export class TorrentClient {
       if (!redirectUrl) throw new Error('Redirect location not found');
 
       const hash = validateInfoHash(extractInfoHashFromMagnet(redirectUrl));
-      if (!hash) throw new Error('Invalid magnet URL in redirect');
+      if (!hash) {
+        if (redirectCount >= 3) {
+          throw new Error(`Too many redirects: ${redirectUrl}`);
+        }
+        logger.debug(
+          `Invalid magnet URL in redirect: ${redirectUrl}, retrying...`
+        );
+        return this.#fetchMetadata(torrent, redirectCount + 1);
+      }
 
       const sources = extractTrackersFromMagnet(redirectUrl);
       logger.debug(

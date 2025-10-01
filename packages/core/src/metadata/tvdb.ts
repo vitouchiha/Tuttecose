@@ -298,7 +298,7 @@ class TVDBApi {
 
     const token = await this.cache.token.wrap(
       getToken,
-      'token',
+      this.apiKey,
       30 * 24 * 60 * 60 // 30 days
     );
 

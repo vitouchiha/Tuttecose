@@ -100,6 +100,15 @@ export class ProwlarrPreset extends BuiltinAddonPreset {
           },
         ],
       },
+      {
+        id: 'useMultipleInstances',
+        name: 'Use Multiple Instances',
+        description:
+          'Prowlarr supports multiple services in one instance of the addon - which is used by default. If this is enabled, then the addon will be created for each service.',
+        type: 'boolean',
+        default: false,
+        showInNoobMode: false,
+      },
     ];
 
     return {
@@ -123,21 +132,23 @@ export class ProwlarrPreset extends BuiltinAddonPreset {
     options: Record<string, any>
   ): Promise<Addon[]> {
     const usableServices = this.getUsableServices(userData, options.services);
-    if (
-      (!usableServices || usableServices.length === 0) &&
-      !options.enableP2P
-    ) {
+    if (!usableServices || usableServices.length === 0) {
       throw new Error(
         `${this.METADATA.NAME} requires at least one usable service, but none were found. Please enable at least one of the following services: ${this.METADATA.SUPPORTED_SERVICES.join(
           ', '
         )}`
       );
     }
+    if (options.useMultipleInstances) {
+      return usableServices.map((service) =>
+        this.generateAddon(userData, options, [service.id])
+      );
+    }
     return [
       this.generateAddon(
         userData,
         options,
-        usableServices?.map((service) => service.id) || []
+        usableServices.map((service) => service.id)
       ),
     ];
   }
@@ -198,7 +209,7 @@ export class ProwlarrPreset extends BuiltinAddonPreset {
       tags: typeof options.tags === 'string' ? options.tags.split(',') : [],
     };
 
-    const configString = this.base64EncodeJSON(config);
+    const configString = this.base64EncodeJSON(config, 'urlSafe');
     return `${this.METADATA.URL}/${configString}/manifest.json`;
   }
 }

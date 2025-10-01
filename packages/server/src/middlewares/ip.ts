@@ -50,12 +50,31 @@ export const ipMiddleware = (
       req.ip
     );
   };
-  // extract IP from headers
+  if (Env.LOG_SENSITIVE_INFO) {
+    const headers = {
+      'X-Client-IP': req.get('X-Client-IP'),
+      'X-Forwarded-For': req.get('X-Forwarded-For'),
+      'X-Real-IP': req.get('X-Real-IP'),
+      'CF-Connecting-IP': req.get('CF-Connecting-IP'),
+      'True-Client-IP': req.get('True-Client-IP'),
+      'X-Forwarded': req.get('X-Forwarded'),
+      'Forwarded-For': req.get('Forwarded-For'),
+      ip: req.ip,
+    };
+    logger.debug(
+      `Determining user IP based on headers: ${JSON.stringify(headers)}`
+    );
+  }
   const userIp = getIpFromHeaders(req);
   const ip = req.ip || '';
   const trustedIps = Env.TRUSTED_IPS || [];
 
   const isTrustedIp = trustedIps.some((range) => isIpInRange(ip, range));
+  if (Env.LOG_SENSITIVE_INFO) {
+    logger.debug(
+      `Determining request IP based on headers: x-forwarded-for: ${req.get('X-Forwarded-For')}, cf-connecting-ip: ${req.get('CF-Connecting-IP')}, ip: ${ip}`
+    );
+  }
   const requestIp = isTrustedIp
     ? req.get('X-Forwarded-For')?.split(',')[0].trim() ||
       req.get('CF-Connecting-IP') ||

@@ -9,6 +9,7 @@ type ApiResponseOptions = {
   error?: {
     code: string;
     message: string;
+    issues?: any;
   };
 };
 export type ApiResponse<T> = {
@@ -18,6 +19,7 @@ export type ApiResponse<T> = {
   error: {
     code: string;
     message: string;
+    issues?: any;
   } | null;
 };
 

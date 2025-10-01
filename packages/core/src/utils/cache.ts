@@ -2,6 +2,7 @@ import {
   CacheBackend,
   MemoryCacheBackend,
   RedisCacheBackend,
+  SQLCacheBackend,
 } from './cache-adapter.js';
 import { createLogger, Env } from './index.js';
 import { createClient, RedisClientType } from 'redis';
@@ -30,12 +31,20 @@ export class Cache<K, V> {
   // Redis client singleton
   private static redisClient: RedisClientType | null = null;
 
-  private constructor(name: string, maxSize: number, forceMemory: boolean) {
+  private constructor(
+    name: string,
+    maxSize: number,
+    store?: 'redis' | 'sql' | 'memory'
+  ) {
     this.name = name;
     this.maxSize = maxSize;
 
-    // Initialize the appropriate backend based on environment configuration
-    if (Env.REDIS_URI && !forceMemory) {
+    // Initialize the appropriate backend based on environment configuration and store preference
+    if (store === 'sql') {
+      this.backend = new SQLCacheBackend<K, V>(`${name}:`, maxSize);
+      logger.debug(`Created SQL cache backend for ${name}`);
+    } else if (Env.REDIS_URI && (!store || store === 'redis')) {
+      // use redis if provided and no store preference or redis is specified
       this.backend = new RedisCacheBackend<K, V>(
         Cache.getRedisClient(),
         `${name}:`,
@@ -151,11 +160,11 @@ export class Cache<K, V> {
   public static getInstance<K, V>(
     name: string,
     maxSize: number = Env.DEFAULT_MAX_CACHE_SIZE,
-    forceMemory: boolean = false
+    store?: 'redis' | 'sql' | 'memory'
   ): Cache<K, V> {
     if (!this.instances.has(name)) {
       logger.debug(`Creating new cache instance: ${name}`);
-      this.instances.set(name, new Cache<K, V>(name, maxSize, forceMemory));
+      this.instances.set(name, new Cache<K, V>(name, maxSize, store));
     }
     return this.instances.get(name) as Cache<K, V>;
   }
@@ -280,7 +289,9 @@ export class Cache<K, V> {
     return this.backend.waitUntilReady();
   }
 
-  getType(): 'memory' | 'redis' {
-    return this.backend instanceof MemoryCacheBackend ? 'memory' : 'redis';
+  getType(): 'memory' | 'redis' | 'sql' {
+    if (this.backend instanceof MemoryCacheBackend) return 'memory';
+    if (this.backend instanceof RedisCacheBackend) return 'redis';
+    return 'sql';
   }
 }

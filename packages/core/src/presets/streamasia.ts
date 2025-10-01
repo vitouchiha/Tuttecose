@@ -446,7 +446,7 @@ there is no need to provide these details here.
         hideUnsupportedHosters: options.hideUnsupportedHosters,
         version: '1.3.1',
       },
-      true
+      'urlEncode'
     );
 
     return encodedUserData;

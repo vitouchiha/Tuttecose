@@ -125,13 +125,13 @@ export class StremioTransformer {
             return stream.parsedFile?.[attribute];
         }
       })
-      .filter((attribute) =>
-        attribute !== undefined &&
-        attribute !== null &&
-        Array.isArray(attribute)
-          ? attribute.length
-          : true
-      );
+      .flat()
+      .filter((attribute) => {
+        if (attribute === undefined || attribute === null) return false;
+        if (Array.isArray(attribute)) return attribute.length > 0;
+        return true;
+      });
+
     let bingeGroup: string | undefined;
     if (autoPlaySettings.enabled) {
       bingeGroup = Env.ADDON_ID;

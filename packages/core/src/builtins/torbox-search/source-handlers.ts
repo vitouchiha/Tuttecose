@@ -23,6 +23,7 @@ import { processNZBs, processTorrents } from '../utils/debrid.js';
 import {
   NZBWithSelectedFile,
   TorrentWithSelectedFile,
+  generatePlaybackUrl,
 } from '../../debrid/utils.js';
 import { DebridFile, PlaybackInfo } from '../../debrid/index.js';
 import { getTraktAliases } from '../../metadata/trakt.js';
@@ -83,9 +84,10 @@ abstract class SourceHandler {
     }
     const storeAuth = {
       id: torrentOrNZB.service.id,
-      credential: userData.services.find(
-        (service) => service.id === torrentOrNZB.service!.id
-      )?.credential,
+      credential:
+        userData.services.find(
+          (service) => service.id === torrentOrNZB.service!.id
+        )?.credential ?? '',
     };
 
     // const playbackInfo: PlaybackInfo = {
@@ -122,7 +124,13 @@ abstract class SourceHandler {
     const description = `${torrentOrNZB.title}\n${torrentOrNZB.file.name}\n${torrentOrNZB.indexer ? `🔍 ${torrentOrNZB.indexer}` : ''} ${torrentOrNZB.seeders ? `👤 ${torrentOrNZB.seeders}` : ''} ${torrentOrNZB.age && torrentOrNZB.age !== '0d' ? `🕒 ${torrentOrNZB.age}` : ''}`;
 
     return {
-      url: `${Env.BASE_URL}/api/v1/debrid/playback/${encodeURIComponent(Buffer.from(JSON.stringify(storeAuth)).toString('base64'))}/${encodeURIComponent(Buffer.from(JSON.stringify(playbackInfo)).toString('base64'))}/${encodeURIComponent(torrentOrNZB.file.name || torrentOrNZB.title || 'unknown')}`,
+      url: torrentOrNZB.service
+        ? generatePlaybackUrl(
+            storeAuth!,
+            playbackInfo!,
+            torrentOrNZB.file.name || torrentOrNZB.title || 'unknown'
+          )
+        : undefined,
       name,
       description,
       type: torrentOrNZB.type,

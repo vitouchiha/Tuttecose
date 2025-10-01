@@ -20,6 +20,7 @@ import {
   UnprocessedTorrent,
   ServiceAuth,
   DebridError,
+  generatePlaybackUrl,
 } from '../../debrid/index.js';
 import { processTorrents, processNZBs } from '../utils/debrid.js';
 import { calculateAbsoluteEpisode } from '../utils/general.js';
@@ -211,11 +212,10 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
       ),
     ]);
 
-    const resultStreams = [
-      ...processedTorrents.results,
-      ...processedNzbs.results,
-    ].map((result) =>
-      this._createStream(result, this.userData, searchMetadata)
+    const resultStreams = await Promise.all(
+      [...processedTorrents.results, ...processedNzbs.results].map((result) =>
+        this._createStream(result, this.userData, searchMetadata)
+      )
     );
 
     const processingErrors = [
@@ -470,11 +470,11 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
 
     return {
       url: torrentOrNzb.service
-        ? `${Env.BASE_URL}/api/v1/debrid/playback/${encodeURIComponent(
-            Buffer.from(JSON.stringify(storeAuth)).toString('base64')
-          )}/${encodeURIComponent(
-            Buffer.from(JSON.stringify(playbackInfo)).toString('base64')
-          )}/${encodeURIComponent(torrentOrNzb.file.name || torrentOrNzb.title || 'unknown')}`
+        ? generatePlaybackUrl(
+            storeAuth!,
+            playbackInfo!,
+            torrentOrNzb.file.name || torrentOrNzb.title || 'unknown'
+          )
         : undefined,
       name,
       description,

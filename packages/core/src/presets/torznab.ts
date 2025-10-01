@@ -104,11 +104,16 @@ export class TorznabPreset extends BuiltinAddonPreset {
         )}`
       );
     }
+    if (options.useMultipleInstances) {
+      return usableServices.map((service) =>
+        this.generateAddon(userData, options, [service.id])
+      );
+    }
     return [
       this.generateAddon(
         userData,
         options,
-        usableServices?.map((service) => service.id) || []
+        usableServices.map((service) => service.id)
       ),
     ];
   }
@@ -154,7 +159,7 @@ export class TorznabPreset extends BuiltinAddonPreset {
       forceQuerySearch: options.forceQuerySearch ?? false,
     };
 
-    const configString = this.base64EncodeJSON(config);
+    const configString = this.base64EncodeJSON(config, 'urlSafe');
     return `${this.METADATA.URL}/${configString}/manifest.json`;
   }
 }

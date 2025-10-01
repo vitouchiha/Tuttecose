@@ -21,7 +21,7 @@ const logger = createLogger('http');
 const urlCount = Cache.getInstance<string, number>(
   'url-count',
   undefined,
-  true
+  'memory'
 );
 
 export class PossibleRecursiveRequestError extends Error {

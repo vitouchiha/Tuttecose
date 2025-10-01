@@ -30,7 +30,7 @@ class TorboxStreamParser extends StreamParser {
     stream: Stream,
     currentParsedStream: ParsedStream
   ): string | undefined {
-    return (stream as any).hash;
+    return stream.type !== 'usenet' ? (stream as any).hash : undefined;
   }
   override getInLibrary(
     stream: Stream,
