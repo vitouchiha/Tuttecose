@@ -1,3 +1,4 @@
+import bytes from 'bytes';
 import { Stream, ParsedStream, Addon, ParsedFile } from '../db/index.js';
 import {
   constants,
@@ -6,6 +7,7 @@ import {
   FULL_LANGUAGE_MAPPING,
 } from '../utils/index.js';
 import FileParser from './file.js';
+import { parseAgeString } from './utils.js';
 const logger = createLogger('parser');
 
 class StreamParser {
@@ -133,7 +135,8 @@ class StreamParser {
       infoHash: stream.infoHash ?? this.getInfoHash(stream, parsedStream),
       seeders: this.getSeeders(stream, parsedStream),
       sources: stream.sources ?? undefined,
-      fileIdx: stream.fileIdx ?? undefined,
+      fileIdx:
+        stream.fileIdx ?? this.getFileIdx(stream, parsedStream) ?? undefined,
     };
 
     return parsedStream;
@@ -219,7 +222,7 @@ class StreamParser {
 
     for (const line of potentialFilenames) {
       const parsed = FileParser.parse(line);
-      if (parsed.year || parsed.season || parsed.episode) {
+      if (parsed.year || parsed.seasons?.length || parsed.episodes?.length) {
         filename = line;
         break;
       }
@@ -267,7 +270,7 @@ class StreamParser {
       (stream.name && this.calculateBytesFromSizeString(stream.name));
 
     if (typeof size === 'string') {
-      size = parseInt(size);
+      size = bytes.parse(size);
     } else if (typeof size === 'number') {
       size = Math.round(size);
     }
@@ -301,18 +304,24 @@ class StreamParser {
   protected getAge(
     stream: Stream,
     currentParsedStream: ParsedStream
-  ): string | undefined {
+  ): number | undefined {
     const regex = this.ageRegex;
     if (!regex) {
       return undefined;
     }
     const match = stream.description?.match(regex);
     if (match) {
-      return match[1];
+      return parseAgeString(match[1]);
     }
 
     return undefined;
   }
+
+  /**
+   * Converts age strings like "1d", "5h", "30m", "456d" to hours
+   * @param ageString - The age string to parse (e.g. "1d", "5h", "30m")
+   * @returns The age in hours, or undefined if parsing fails
+   */
 
   protected isProxied(stream: Stream): boolean {
     return false;
@@ -345,7 +354,15 @@ class StreamParser {
     stream: Stream,
     currentParsedStream: ParsedStream
   ): ParsedStream['service'] | undefined {
-    return this.parseServiceData(stream.name || '');
+    const service = this.parseServiceData(stream.name || '');
+    if (
+      service &&
+      (service.id === constants.NZBDAV_SERVICE ||
+        service.id === constants.ALTMOUNT_SERVICE)
+    ) {
+      currentParsedStream.proxied = !stream.behaviorHints?.proxyHeaders;
+    }
+    return service;
   }
 
   protected getInfoHash(
@@ -355,6 +372,13 @@ class StreamParser {
     return stream.url
       ? stream.url.match(/(?<=[-/[(;:&])[a-fA-F0-9]{40}(?=[-\]\)/:;&])/)?.[0]
       : undefined;
+  }
+
+  protected getFileIdx(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): number | undefined {
+    return undefined;
   }
 
   protected getDuration(
@@ -425,43 +449,44 @@ class StreamParser {
     const fileParsed = parsedStream.filename
       ? FileParser.parse(parsedStream.filename)
       : undefined;
-
+    function arrayFallback<T>(
+      arr1: T[] | undefined,
+      arr2: T[] | undefined
+    ): T[] | undefined {
+      return arr1?.length ? arr1 : arr2?.length ? arr2 : undefined;
+    }
+    function arrayMerge<T>(arr1: T[] | undefined, arr2: T[] | undefined): T[] {
+      return Array.from(new Set([...(arr1 ?? []), ...(arr2 ?? [])]));
+    }
     return {
       title: folderParsed?.title || fileParsed?.title,
       year: fileParsed?.year || folderParsed?.year,
-      season: fileParsed?.season || folderParsed?.season,
-      episode: fileParsed?.episode || folderParsed?.episode,
-      seasons: fileParsed?.seasons || folderParsed?.seasons,
+      seasons: arrayFallback(fileParsed?.seasons, folderParsed?.seasons),
+      episodes: arrayFallback(fileParsed?.episodes, folderParsed?.episodes),
       resolution: fileParsed?.resolution || folderParsed?.resolution,
       quality: fileParsed?.quality || folderParsed?.quality,
       encode: fileParsed?.encode || folderParsed?.encode,
       releaseGroup: fileParsed?.releaseGroup || folderParsed?.releaseGroup,
-      seasonEpisode: fileParsed?.seasonEpisode || folderParsed?.seasonEpisode,
-      visualTags: Array.from(
-        new Set([
-          ...(folderParsed?.visualTags ?? []),
-          ...(fileParsed?.visualTags ?? []),
-        ])
+      edition: fileParsed?.edition || folderParsed?.edition,
+      remastered: fileParsed?.remastered || folderParsed?.remastered,
+      repack: fileParsed?.repack || folderParsed?.repack,
+      uncensored: fileParsed?.uncensored || folderParsed?.uncensored,
+      unrated: fileParsed?.unrated || folderParsed?.unrated,
+      upscaled: fileParsed?.upscaled || folderParsed?.upscaled,
+      network: fileParsed?.network || folderParsed?.network,
+      container: fileParsed?.container || folderParsed?.container,
+      extension: fileParsed?.extension || folderParsed?.extension,
+      visualTags: arrayMerge(folderParsed?.visualTags, fileParsed?.visualTags),
+      audioTags: arrayMerge(folderParsed?.audioTags, fileParsed?.audioTags),
+      audioChannels: arrayMerge(
+        folderParsed?.audioChannels,
+        fileParsed?.audioChannels
       ),
-      audioTags: Array.from(
-        new Set([
-          ...(folderParsed?.audioTags ?? []),
-          ...(fileParsed?.audioTags ?? []),
-        ])
+      languages: arrayMerge(
+        arrayMerge(folderParsed?.languages, fileParsed?.languages),
+        this.getLanguages(stream, parsedStream)
       ),
-      audioChannels: Array.from(
-        new Set([
-          ...(folderParsed?.audioChannels ?? []),
-          ...(fileParsed?.audioChannels ?? []),
-        ])
-      ),
-      languages: Array.from(
-        new Set([
-          ...(folderParsed?.languages ?? []),
-          ...(fileParsed?.languages ?? []),
-          ...this.getLanguages(stream, parsedStream),
-        ])
-      ),
+      seasonPack: folderParsed?.seasonPack || fileParsed?.seasonPack,
     };
   }
 

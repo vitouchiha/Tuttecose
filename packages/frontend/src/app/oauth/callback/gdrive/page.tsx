@@ -11,6 +11,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { toast } from 'sonner';
 import { UserConfigAPI } from '@/services/api';
 import { BiCopy } from 'react-icons/bi';
+import { copyToClipboard } from '@/utils/clipboard';
 
 function OAuthCallbackContent() {
   const [code, setCode] = useState<string | null>(null);
@@ -45,17 +46,12 @@ function OAuthCallbackContent() {
 
   const handleCopy = async () => {
     if (code) {
-      try {
-        await navigator.clipboard.writeText(code);
-        toast.success('Copied!', {
-          description:
-            'The authorization code has been copied to your clipboard.',
-        });
-      } catch (err) {
-        toast.error('Failed to copy', {
-          description: 'Please try copying the code manually.',
-        });
-      }
+      await copyToClipboard(code, {
+        successMessage: 'Copied!',
+        errorMessage: 'Failed to copy',
+        description:
+          'The authorization code has been copied to your clipboard.',
+      });
     }
   };
 

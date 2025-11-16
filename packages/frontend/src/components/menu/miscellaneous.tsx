@@ -16,6 +16,7 @@ import {
 import { Select } from '../ui/select';
 import { Alert } from '../ui/alert';
 import { useMode } from '@/context/mode';
+import { NumberInput } from '../ui/number-input/number-input';
 
 export function MiscellaneousMenu() {
   return (
@@ -169,6 +170,118 @@ function Content() {
                 }}
               />
             )}
+          </SettingsCard>
+        )}
+        {mode === 'pro' && (
+          <SettingsCard
+            title="Are you still there?"
+            description="Stop autoplay after a number of consecutive episodes so the player returns to stream selection."
+          >
+            <Switch
+              label="Enable"
+              side="right"
+              value={userData.areYouStillThere?.enabled}
+              onValueChange={(value) => {
+                setUserData((prev) => ({
+                  ...prev,
+                  areYouStillThere: {
+                    ...prev.areYouStillThere,
+                    enabled: value,
+                  },
+                }));
+              }}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <NumberInput
+                label="Episodes before check"
+                min={1}
+                defaultValue={3}
+                disabled={!userData.areYouStillThere?.enabled}
+                value={userData.areYouStillThere?.episodesBeforeCheck ?? 3}
+                onValueChange={(value) => {
+                  setUserData((prev) => ({
+                    ...prev,
+                    areYouStillThere: {
+                      ...prev.areYouStillThere,
+                      episodesBeforeCheck: Math.max(1, Number(value || 3)),
+                    },
+                  }));
+                }}
+              />
+              <NumberInput
+                label="Cooldown (minutes)"
+                min={1}
+                defaultValue={60}
+                disabled={!userData.areYouStillThere?.enabled}
+                value={userData.areYouStillThere?.cooldownMinutes ?? 60}
+                onValueChange={(value) => {
+                  setUserData((prev) => ({
+                    ...prev,
+                    areYouStillThere: {
+                      ...prev.areYouStillThere,
+                      cooldownMinutes: Math.max(1, Number(value || 60)),
+                    },
+                  }));
+                }}
+              />
+            </div>
+          </SettingsCard>
+        )}
+        {mode === 'pro' && (
+          <SettingsCard
+            title="Cache and Play"
+            description={
+              <div className="space-y-2">
+                <p>
+                  This feature allows you to have uncached streams simply wait
+                  for it to finish downloading and then play it rather than
+                  showing a short video telling you to try again later. Only
+                  recommended for Usenet downloads as they finish a lot quicker
+                  in most cases.
+                </p>
+                <Alert intent="info-basic">
+                  <p className="text-sm">
+                    This feature will only work for built-in addons.
+                  </p>
+                </Alert>
+              </div>
+            }
+          >
+            <Switch
+              label="Enable"
+              side="right"
+              value={userData.cacheAndPlay?.enabled}
+              onValueChange={(value) => {
+                setUserData((prev) => ({
+                  ...prev,
+                  cacheAndPlay: {
+                    ...prev.cacheAndPlay,
+                    enabled: value,
+                  },
+                }));
+              }}
+            />
+            <Combobox
+              label="Stream Types"
+              options={['usenet', 'torrent'].map((streamType) => ({
+                label: streamType,
+                value: streamType,
+                textValue: streamType,
+              }))}
+              multiple
+              emptyMessage="No stream types found"
+              defaultValue={['usenet']}
+              value={userData.cacheAndPlay?.streamTypes ?? ['usenet']}
+              onValueChange={(value) => {
+                setUserData((prev) => ({
+                  ...prev,
+                  cacheAndPlay: {
+                    ...prev.cacheAndPlay,
+                    streamTypes: value as ('usenet' | 'torrent')[],
+                  },
+                }));
+              }}
+            />
           </SettingsCard>
         )}
         {mode === 'pro' && (

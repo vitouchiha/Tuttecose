@@ -4,6 +4,7 @@ import { createLogger } from '../utils/logger.js';
 import {
   formatBytes,
   formatDuration,
+  formatHours,
   languageToCode,
   languageToEmoji,
   makeSmall,
@@ -55,7 +56,7 @@ export interface ParseValue {
     folderName: string | null;
     size: number | null;
     folderSize: number | null;
-    library: boolean | null;
+    library: boolean;
     quality: string | null;
     resolution: string | null;
     languages: string[] | null;
@@ -74,20 +75,34 @@ export interface ParseValue {
     regexMatched: string | null;
     encode: string | null;
     audioChannels: string[] | null;
+    edition: string | null;
+    remastered: boolean;
+    repack: boolean;
+    uncensored: boolean;
+    unrated: boolean;
+    upscaled: boolean;
+    network: string | null;
+    container: string | null;
+    extension: string | null;
     indexer: string | null;
     year: string | null;
     title: string | null;
-    season: number | null;
     seasons: number[] | null;
+    season: number | null;
+    formattedSeasons: string | null;
+    episodes: number[] | null;
     episode: number | null;
+    formattedEpisodes: string | null;
     seasonEpisode: string[] | null;
+    seasonPack: boolean;
     seeders: number | null;
     age: string | null;
+    ageHours: number | null;
     duration: number | null;
     infoHash: string | null;
     type: string | null;
     message: string | null;
-    proxied: boolean | null;
+    proxied: boolean;
   };
   service?: {
     id: string | null;
@@ -176,6 +191,22 @@ export abstract class BaseFormatter {
         ...(this.userData.includedLanguages || []),
       ]),
     ];
+    const getPaddedNumber = (number: number, length: number) =>
+      number.toString().padStart(length, '0');
+    const formattedSeasonString = stream.parsedFile?.seasons?.length
+      ? stream.parsedFile.seasons.length === 1
+        ? `S${getPaddedNumber(stream.parsedFile.seasons[0], 2)}`
+        : `S${getPaddedNumber(stream.parsedFile.seasons[0], 2)}-${getPaddedNumber(stream.parsedFile.seasons[stream.parsedFile.seasons.length - 1], 2)}`
+      : undefined;
+    const formattedEpisodeString = stream.parsedFile?.episodes?.length
+      ? stream.parsedFile.episodes.length === 1
+        ? `E${getPaddedNumber(stream.parsedFile.episodes[0], 2)}`
+        : `E${getPaddedNumber(stream.parsedFile.episodes[0], 2)}-${getPaddedNumber(stream.parsedFile.episodes[stream.parsedFile.episodes.length - 1], 2)}`
+      : undefined;
+    const seasonEpisode = [
+      formattedSeasonString,
+      formattedEpisodeString,
+    ].filter((v) => v !== undefined);
 
     const sortedLanguages = languages
       ? [...languages].sort((a, b) => {
@@ -198,6 +229,7 @@ export abstract class BaseFormatter {
     const onlyUserSpecifiedLanguages = sortedLanguages?.filter((lang) =>
       userSpecifiedLanguages.includes(lang as any)
     );
+    const formattedAge = stream.age ? formatHours(stream.age) : null;
     const parseValue: ParseValue = {
       config: {
         addonName: this.userData.addonName || Env.ADDON_NAME,
@@ -207,7 +239,7 @@ export abstract class BaseFormatter {
         folderName: stream.folderName || null,
         size: stream.size || null,
         folderSize: stream.folderSize || null,
-        library: stream.library !== undefined ? stream.library : null,
+        library: stream.library ?? false,
         quality: stream.parsedFile?.quality || null,
         resolution: stream.parsedFile?.resolution || null,
         languages: sortedLanguages || null,
@@ -267,15 +299,29 @@ export abstract class BaseFormatter {
         year: stream.parsedFile?.year || null,
         type: stream.type || null,
         title: stream.parsedFile?.title || null,
-        season: stream.parsedFile?.season || null,
+        season: stream.parsedFile?.seasons?.[0] || null,
+        formattedSeasons: formattedSeasonString || null,
         seasons: stream.parsedFile?.seasons || null,
-        episode: stream.parsedFile?.episode || null,
-        seasonEpisode: stream.parsedFile?.seasonEpisode || null,
+        episode: stream.parsedFile?.episodes?.[0] || null,
+        formattedEpisodes: formattedEpisodeString || null,
+        episodes: stream.parsedFile?.episodes || null,
+        seasonEpisode: seasonEpisode || null,
+        seasonPack: stream.parsedFile?.seasonPack ?? false,
         duration: stream.duration || null,
         infoHash: stream.torrent?.infoHash || null,
-        age: stream.age || null,
+        age: formattedAge,
+        ageHours: stream.age || null,
         message: stream.message || null,
-        proxied: stream.proxied !== undefined ? stream.proxied : null,
+        proxied: stream.proxied ?? false,
+        edition: stream.parsedFile?.edition || null,
+        remastered: stream.parsedFile?.remastered ?? false,
+        repack: stream.parsedFile?.repack ?? false,
+        uncensored: stream.parsedFile?.uncensored ?? false,
+        unrated: stream.parsedFile?.unrated ?? false,
+        upscaled: stream.parsedFile?.upscaled ?? false,
+        network: stream.parsedFile?.network || null,
+        container: stream.parsedFile?.container || null,
+        extension: stream.parsedFile?.extension || null,
       },
       addon: {
         name: stream.addon?.name || null,
@@ -323,10 +369,12 @@ export abstract class BaseFormatter {
         )
         .join('\n')
         .replace(/\{tools.newLine\}/g, '\n');
-    }
+    };
   }
 
-    protected async compileTemplateHelper(str: string): Promise<CompiledParseFunction> {
+  protected async compileTemplateHelper(
+    str: string
+  ): Promise<CompiledParseFunction> {
     const re = this.regexBuilder.buildRegexExpression();
     let matches: RegExpExecArray | null;
 
@@ -341,7 +389,7 @@ export abstract class BaseFormatter {
       );
     }
 
-    const placeHolder = " ";
+    const placeHolder = ' ';
 
     // Iterate through all {...} matches
     while ((matches = re.exec(str))) {
@@ -379,33 +427,56 @@ export abstract class BaseFormatter {
         if (precompiledResolvedVariableFns.length == 1)
           return precompiledResolvedVariableFns[0](parseValue);
 
-        const resolvedVariablesWithContext = precompiledResolvedVariableFns.map(
-          (fn) => fn(parseValue)
+        // Check if we can safely use short-circuit evaluation
+        // Only short-circuit when all operators are the same type (all 'and' or all 'or')
+        const allOperatorsSame = foundComparators.every(
+          (op, idx, arr) => op === arr[0]
         );
-        const reducedResolvedVarWContext = resolvedVariablesWithContext.reduce(
-          (prev, cur, i) => {
-            if (prev.error !== undefined) return prev;
-            if (cur.error !== undefined) return cur;
-            // the comparator key between prev and cur (from splitOnComparators)
-            const compareKey = foundComparators[
-              i - 1
-            ] as keyof typeof ComparatorConstants.comparatorKeyToFuncs;
-            const comparatorFn =
-              ComparatorConstants.comparatorKeyToFuncs[compareKey];
+        const canShortCircuit =
+          allOperatorsSame &&
+          (foundComparators[0] === 'and' || foundComparators[0] === 'or');
 
-            try {
-              const result = comparatorFn(prev.result, cur.result);
-              const finalResult = { result: result };
-              return finalResult;
-            } catch (e) {
-              const errorResult = {
-                error: `{unable_to_compare(<${prev.result}>::${compareKey}::<${cur.result}>, ${e})}`,
-              };
-              return errorResult;
+        // Use lazy evaluation with short-circuit logic for AND/OR operations when safe
+        let result: ResolvedVariable =
+          precompiledResolvedVariableFns[0](parseValue);
+
+        for (let i = 1; i < precompiledResolvedVariableFns.length; i++) {
+          // If previous result has error, propagate it
+          if (result.error !== undefined) return result;
+
+          const compareKey = foundComparators[
+            i - 1
+          ] as keyof typeof ComparatorConstants.comparatorKeyToFuncs;
+
+          // Short-circuit evaluation only when all operators are the same
+          if (canShortCircuit) {
+            if (compareKey === 'and' && result.result === false) {
+              return { result: false };
+            } else if (compareKey === 'or' && result.result === true) {
+              return { result: true };
             }
           }
-        );
-        return reducedResolvedVarWContext;
+
+          const nextResolved = precompiledResolvedVariableFns[i](parseValue);
+
+          // If next result has error, propagate it
+          if (nextResolved.error !== undefined) return nextResolved;
+
+          const comparatorFn =
+            ComparatorConstants.comparatorKeyToFuncs[compareKey];
+
+          try {
+            result = {
+              result: comparatorFn(result.result, nextResolved.result),
+            };
+          } catch (e) {
+            return {
+              error: `{unable_to_compare(<${result.result}>::${compareKey}::<${nextResolved.result}>, ${e})}`,
+            };
+          }
+        }
+
+        return result;
       }; // end of COMPARATOR logic
 
       // CHECK TRUE/FALSE logic: compile the true/false templates and apply them to the resolved variable
@@ -435,30 +506,32 @@ export abstract class BaseFormatter {
         };
       } // end of CHECK TRUE/FALSE logic
 
-      str = str.slice(0, index) +placeHolder+ str.slice(re.lastIndex);
-      re.lastIndex = index+placeHolder.length;
+      str = str.slice(0, index) + placeHolder + str.slice(re.lastIndex);
+      re.lastIndex = index + placeHolder.length;
       compiledMatchTemplateFns.push({
         resultFn: precompiledResolvedVariableFn,
         insertIndex: index,
       });
-		} // end of while loop
-		
-		compiledMatchTemplateFns = compiledMatchTemplateFns.sort((a, b) => (b.insertIndex - a.insertIndex ));
+    } // end of while loop
+
+    compiledMatchTemplateFns = compiledMatchTemplateFns.sort(
+      (a, b) => b.insertIndex - a.insertIndex
+    );
     return (parseValue: ParseValue) => {
       let resultStr = str;
 
       // Sort by startIndex to process in reverse order
       for (const { resultFn, insertIndex } of compiledMatchTemplateFns) {
-				const resolvedResult = resultFn(parseValue);
+        const resolvedResult = resultFn(parseValue);
         const replacement =
           resolvedResult.error ?? resolvedResult.result?.toString() ?? '';
         resultStr =
           resultStr.slice(0, insertIndex) +
           replacement +
-          resultStr.slice(insertIndex+placeHolder.length);
+          resultStr.slice(insertIndex + placeHolder.length);
       }
 
-      return resultStr
+      return resultStr;
     };
   }
 
@@ -528,6 +601,11 @@ export abstract class BaseFormatter {
                   error: `{unknown_${typeof property}_modifier(${lastModMatched})}`,
                 };
               case 'object':
+                if (property == null) {
+                  return {
+                    error: `{cannot_apply_modifier_to_null(${lastModMatched})}`,
+                  };
+                }
                 return { error: `{unknown_array_modifier(${lastModMatched})}` };
               default:
                 return { error: `{unknown_modifier(${lastModMatched})}` };
@@ -632,16 +710,32 @@ export abstract class BaseFormatter {
       // handle hardcoded modifiers here
       switch (true) {
         case mod.startsWith('replace(') && mod.endsWith(')'): {
-					const findStartChar = mod.charAt(8); // either " or '
-					const findEndChar = mod.charAt(mod.length - 2); // either " or '
+          const findStartChar = mod.charAt(8); // either " or '
+          const findEndChar = mod.charAt(mod.length - 2); // either " or '
 
-					// Extract the separator from replace(['"]...<matching'">, ['"]...<matching'">)
-					const content = _mod.substring(9, _mod.length - 2);
+          // Extract the separator from replace(['"]...<matching'">, ['"]...<matching'">)
+          const content = _mod.substring(9, _mod.length - 2);
 
-					// split on findStartChar<whitespace?>,<whitespace?>findEndChar
-					const [key, replaceKey, shouldBeUndefined] = content.split(new RegExp(`${findStartChar}\\s*,\\s*${findEndChar}`))
+          // split on findStartChar<whitespace?>,<whitespace?>findEndChar
+          const [key, replaceKey, shouldBeUndefined] = content.split(
+            new RegExp(`${findStartChar}\\s*,\\s*${findEndChar}`)
+          );
 
-					if (!shouldBeUndefined && key && replaceKey) return variable.replaceAll(key, replaceKey);
+          if (!shouldBeUndefined && key && replaceKey)
+            return variable.replaceAll(key, replaceKey);
+        }
+        case mod.startsWith('truncate(') && mod.endsWith(')'): {
+          // Extract N from truncate(N)
+          const inside = _mod.substring('truncate('.length, _mod.length - 1);
+          const n = parseInt(inside, 10);
+          if (!isNaN(n) && n >= 0) {
+            if (variable.length > n) {
+              // Truncate to N characters and remove trailing whitespace
+              const truncated = variable.slice(0, n).replace(/\s+$/, '');
+              return truncated + '…';
+            }
+            return variable;
+          }
         }
       }
     }
@@ -813,8 +907,11 @@ class ModifierConstants {
     octal: (value: number) => value.toString(8),
     binary: (value: number) => value.toString(2),
     bytes: (value: number) => formatBytes(value, 1000),
+    rbytes: (value: number) => formatBytes(value, 1000, true),
     bytes10: (value: number) => formatBytes(value, 1000),
+    rbytes10: (value: number) => formatBytes(value, 1000, true),
     bytes2: (value: number) => formatBytes(value, 1024),
+    rbytes2: (value: number) => formatBytes(value, 1024, true),
     string: (value: number) => value.toString(),
     time: (value: number) => formatDuration(value),
   };
@@ -845,13 +942,14 @@ class ModifierConstants {
     },
   };
 
-	static hardcodedModifiersForRegexMatching = {
-		"replace('.*?'\\s*?,\\s*?'.*?')": null,
-		"replace(\".*?\"\\s*?,\\s*?'.*?')": null,
-		"replace('.*?'\\s*?,\\s*?\".*?\")": null,
-		'replace(".*?"\\s*?,\\s*?\".*?\")': null,
+  static hardcodedModifiersForRegexMatching = {
+    "replace('.*?'\\s*?,\\s*?'.*?')": null,
+    'replace(".*?"\\s*?,\\s*?\'.*?\')': null,
+    'replace(\'.*?\'\\s*?,\\s*?".*?")': null,
+    'replace(".*?"\\s*?,\\s*?\".*?\")': null,
     "join('.*?')": null,
     'join(".*?")': null,
+    'truncate(\\d+)': null,
     '$.*?': null,
     '^.*?': null,
     '~.*?': null,

@@ -1,8 +1,8 @@
 import { createLogger } from '../utils/logger.js';
-import { Cache, DistributedLock, Env, ParsedId } from '../utils/index.js';
+import { Cache, Env, formatZodError, ParsedId } from '../utils/index.js';
 import { Metadata } from './utils.js';
 import { makeRequest } from '../utils/http.js';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 
 const logger = createLogger('tvdb');
 
@@ -53,7 +53,7 @@ const TVDBBaseRecordSchema = z.object({
   id: z.number(),
   name: z.string(),
   slug: z.string(),
-  image: z.string().url(),
+  image: z.url().nullable(),
   nameTranslations: z.array(z.string()),
   overviewTranslations: z.array(z.string()),
   aliases: z.array(TVDBAliasSchema),
@@ -121,10 +121,13 @@ const TVDBSeriesSchema = z.object({
 
 const TVDBEpisodeSchema = z.looseObject({});
 
+const TVDBSeasonSchema = z.looseObject({});
+
 const TVDBRemoteIdDataSchema = z.union([
   z.object({ movie: TVDBMovieSchema }),
   z.object({ series: TVDBSeriesSchema }),
   z.object({ episode: TVDBEpisodeSchema }),
+  z.object({ season: TVDBSeasonSchema }),
 ]);
 
 export const RemoteIdSearchResponseSchema = z.discriminatedUnion('status', [
@@ -283,7 +286,7 @@ class TVDBApi {
         {
           schema: AuthTokenSchema,
           method: 'POST',
-          timeout: 2000,
+          timeout: 3000,
           body: {
             apikey: this.apiKey,
           },
@@ -315,7 +318,7 @@ class TVDBApi {
           `/search/remoteid/${remoteId}`,
           {
             schema: RemoteIdSearchResponseSchema,
-            timeout: 2000,
+            timeout: 5000,
           }
         );
       },
@@ -334,7 +337,7 @@ class TVDBApi {
           `/series/${id}`,
           {
             schema: SeriesResponseSchema,
-            timeout: 2000,
+            timeout: 5000,
           }
         );
       },
@@ -353,7 +356,7 @@ class TVDBApi {
           `/movies/${id}`,
           {
             schema: MovieResponseSchema,
-            timeout: 2000,
+            timeout: 5000,
           }
         );
       },
@@ -405,12 +408,11 @@ class TVDBApi {
 
       return schema.parse(data);
     } catch (error) {
-      logger.error(
-        `Request to ${path} failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      throw new Error(
+        error instanceof ZodError
+          ? `Failed to parse response from TVDB: ${formatZodError(error)}`
+          : `Request to TVDB API failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
-      throw error instanceof Error
-        ? error
-        : new Error('Unknown error occurred');
     }
   }
 }

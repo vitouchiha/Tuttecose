@@ -8,12 +8,12 @@ import {
   Resource,
   StremioTransformer,
   UserRepository,
+  Env,
 } from '@aiostreams/core';
 
 const logger = createLogger('server');
 
 // Valid resources that require authentication
-// const VALID_RESOURCES = ['stream', 'configure'];
 const VALID_RESOURCES = [...constants.RESOURCES, 'manifest.json', 'configure'];
 
 export const userDataMiddleware = async (
@@ -21,10 +21,10 @@ export const userDataMiddleware = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { uuid, encryptedPassword } = req.params;
+  const { uuid: uuidOrAlias, encryptedPassword } = req.params;
 
   // Both uuid and encryptedPassword should be present since we mounted the router on this path
-  if (!uuid || !encryptedPassword) {
+  if (!uuidOrAlias || !encryptedPassword) {
     next(new APIError(constants.ErrorCode.USER_INVALID_DETAILS));
     return;
   }
@@ -38,11 +38,19 @@ export const userDataMiddleware = async (
   }
 
   // Second check - validate UUID format (simpler regex that just checks UUID format)
+  let uuid: string | undefined;
   const uuidRegex =
     /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-  if (!uuidRegex.test(uuid)) {
-    next(new APIError(constants.ErrorCode.USER_INVALID_DETAILS));
-    return;
+  if (!uuidRegex.test(uuidOrAlias)) {
+    const alias = Env.ALIASED_CONFIGURATIONS.get(uuidOrAlias);
+    if (alias) {
+      uuid = alias.uuid;
+    } else {
+      next(new APIError(constants.ErrorCode.USER_INVALID_DETAILS));
+      return;
+    }
+  } else {
+    uuid = uuidOrAlias;
   }
 
   const resource = resourceMatch[1];

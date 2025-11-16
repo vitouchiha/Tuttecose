@@ -46,8 +46,11 @@ export class TorboxSearchParser extends StreamParser {
     return stream.name?.includes('☁️') ?? false;
   }
 
-  protected get ageRegex(): RegExp | undefined {
-    return this.getRegexForTextAfterEmojis(['🕒']);
+  protected getAge(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): number | undefined {
+    return stream.age as number | undefined;
   }
 
   protected getStreamType(
@@ -107,13 +110,37 @@ export class TorBoxSearchPreset extends StremThruPreset {
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
         required: false,
-        showInNoobMode: false,
+        showInSimpleMode: false,
         options: StremThruPreset.supportedServices.map((service) => ({
           value: service,
           label: constants.SERVICE_DETAILS[service].name,
         })),
         default: undefined,
         emptyIsUndefined: true,
+      },
+      {
+        id: 'mediaTypes',
+        name: 'Media Types',
+        description:
+          'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
+        type: 'multi-select',
+        required: false,
+        showInSimpleMode: false,
+        default: [],
+        options: [
+          {
+            label: 'Movie',
+            value: 'movie',
+          },
+          {
+            label: 'Series',
+            value: 'series',
+          },
+          {
+            label: 'Anime',
+            value: 'anime',
+          },
+        ],
       },
       {
         id: 'userSearchEngines',
@@ -209,6 +236,7 @@ export class TorBoxSearchPreset extends StremThruPreset {
           ? 'multi'
           : constants.SERVICE_DETAILS[services[0]].shortName,
       manifestUrl: this.generateManifestUrl(userData, services, options),
+      mediaTypes: options.mediaTypes || [],
       enabled: true,
       resources: this.METADATA.SUPPORTED_RESOURCES,
       timeout: options.timeout || this.METADATA.TIMEOUT,
@@ -247,6 +275,7 @@ export class TorBoxSearchPreset extends StremThruPreset {
         id: service,
         credential: this.getServiceCredential(service, userData),
       })),
+      cacheAndPlay: userData.cacheAndPlay,
     };
 
     const configString = this.base64EncodeJSON(config, 'urlSafe');

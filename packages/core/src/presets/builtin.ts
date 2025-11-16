@@ -1,6 +1,7 @@
 import { ParsedStream, Stream, UserData } from '../db/index.js';
 import { StreamParser } from '../parser/index.js';
 import { ServiceId } from '../utils/constants.js';
+import { constants, toUrlSafeBase64 } from '../utils/index.js';
 import { Preset } from './preset.js';
 import { stremthruSpecialCases } from './stremthru.js';
 
@@ -39,10 +40,12 @@ export class BuiltinStreamParser extends StreamParser {
     return stream.name?.includes('☁️') ?? false;
   }
 
-  protected get ageRegex(): RegExp | undefined {
-    return this.getRegexForTextAfterEmojis(['🕒']);
+  protected getAge(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): number | undefined {
+    return stream.age as number | undefined;
   }
-
   protected getStreamType(
     stream: Stream,
     service: ParsedStream['service'],
@@ -62,9 +65,41 @@ export class BuiltinAddonPreset extends Preset {
     userData: UserData,
     specialCases?: Partial<Record<ServiceId, (credentials: any) => any>>
   ) {
+    const nzbDavSpecialCase: Partial<
+      Record<ServiceId, (credentials: any) => any>
+    > = {
+      [constants.NZBDAV_SERVICE]: (credentials: any) =>
+        toUrlSafeBase64(
+          JSON.stringify({
+            nzbdavUrl: credentials.url,
+            publicNzbdavUrl: credentials.publicUrl,
+            nzbdavApiKey: credentials.apiKey,
+            webdavUser: credentials.username,
+            webdavPassword: credentials.password,
+            aiostreamsAuth: credentials.aiostreamsAuth,
+          })
+        ),
+    };
+    const altmountSpecialCase: Partial<
+      Record<ServiceId, (credentials: any) => any>
+    > = {
+      [constants.ALTMOUNT_SERVICE]: (credentials: any) =>
+        toUrlSafeBase64(
+          JSON.stringify({
+            altmountUrl: credentials.url,
+            publicAltmountUrl: credentials.publicUrl,
+            altmountApiKey: credentials.apiKey,
+            webdavUser: credentials.username,
+            webdavPassword: credentials.password,
+            aiostreamsAuth: credentials.aiostreamsAuth,
+          })
+        ),
+    };
     return super.getServiceCredential(serviceId, userData, {
       ...stremthruSpecialCases,
       ...specialCases,
+      ...nzbDavSpecialCase,
+      ...altmountSpecialCase,
     });
   }
 
@@ -77,6 +112,7 @@ export class BuiltinAddonPreset extends Preset {
         id: service,
         credential: this.getServiceCredential(service, userData),
       })),
+      cacheAndPlay: userData.cacheAndPlay,
     };
   }
 }

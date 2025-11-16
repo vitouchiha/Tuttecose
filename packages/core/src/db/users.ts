@@ -41,6 +41,7 @@ export class UserRepository {
         );
       }
       config.trusted = false;
+      config.ip = undefined;
       try {
         // don't skip errors, but don't decrypt credentials
         // as we need to store the encrypted version
@@ -190,6 +191,7 @@ export class UserRepository {
       decryptedConfig.trusted =
         Env.TRUSTED_UUIDS?.split(',').some((u) => new RegExp(u).test(uuid)) ??
         false;
+      decryptedConfig.ip = undefined;
       logger.info(`Retrieved configuration for user ${uuid}`);
       return applyMigrations(decryptedConfig);
     } catch (error) {
@@ -232,6 +234,7 @@ export class UserRepository {
         config.trusted =
           Env.TRUSTED_UUIDS?.split(',').some((u) => new RegExp(u).test(uuid)) ??
           false;
+        config.ip = undefined;
         let validatedConfig: UserData;
         try {
           validatedConfig = await validateConfig(config, {

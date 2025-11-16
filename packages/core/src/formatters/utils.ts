@@ -1,13 +1,21 @@
 import { FULL_LANGUAGE_MAPPING } from '../utils/languages.js';
 
-export function formatBytes(bytes: number, k: 1024 | 1000): string {
+export function formatBytes(
+  bytes: number,
+  k: 1024 | 1000,
+  round: boolean = false
+): string {
   if (bytes === 0) return '0 B';
   const sizes =
     k === 1024
       ? ['B', 'KiB', 'MiB', 'GiB', 'TiB']
       : ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  let value = parseFloat((bytes / Math.pow(k, i)).toFixed(2));
+  if (round) {
+    value = Math.round(value);
+  }
+  return value + ' ' + sizes[i];
 }
 
 export function formatDuration(durationInMs: number): string {
@@ -27,6 +35,19 @@ export function formatDuration(durationInMs: number): string {
   }
 }
 
+/**
+ *
+ * @param hours - number of hours
+ * @returns formatted string in days or hours e.g. "23h", "1d", "1023d"
+ */
+export function formatHours(hours: number): string {
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
 export function makeSmall(code: string): string {
   return code
     .split('')
@@ -42,8 +63,12 @@ export function languageToCode(language: string): string | undefined {
   const extractLanguage = (lang: string) => lang.split('(')[0].trim();
   const possibleLangs = FULL_LANGUAGE_MAPPING.filter(
     (lang) =>
-      extractLanguage(lang.english_name).toLowerCase() ===
-        language.toLowerCase() ||
+      lang.english_name
+        .split(';')
+        .some(
+          (name) =>
+            extractLanguage(name).toLowerCase() === language.toLowerCase()
+        ) ||
       (lang.internal_english_name &&
         extractLanguage(lang.internal_english_name).toLowerCase() ===
           language.toLowerCase()) ||

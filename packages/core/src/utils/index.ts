@@ -2,7 +2,7 @@ export * from './cache.js';
 export * from './constants.js';
 export * from './env.js';
 export * from './logger.js';
-export * from './resources.js';
+export * from './templates.js';
 export * from './feature.js';
 export * from './crypto.js';
 export * from './http.js';

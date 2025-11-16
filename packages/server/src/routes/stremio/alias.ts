@@ -18,7 +18,7 @@ router.get(
       wildcardPath = wildcardPath.join('/');
     }
 
-    const configuration = Env.ALIASED_CONFIGURATIONS[alias];
+    const configuration = Env.ALIASED_CONFIGURATIONS.get(alias);
     if (!configuration || !configuration.uuid || !configuration.password) {
       throw new APIError(constants.ErrorCode.USER_INVALID_DETAILS);
     }

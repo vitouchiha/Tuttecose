@@ -5,6 +5,8 @@ import {
   ParsedStreamSchema,
 } from '../db/schemas.js';
 import bytes from 'bytes';
+import { formatZodError } from '../utils/config.js';
+import { ZodError } from 'zod';
 
 export abstract class StreamExpressionEngine {
   protected parser: Parser;
@@ -322,6 +324,33 @@ export abstract class StreamExpressionEngine {
       });
     };
 
+    this.parser.functions.age = function (
+      streams: ParsedStream[],
+      minAge?: number,
+      maxAge?: number
+    ) {
+      if (!Array.isArray(streams) || streams.some((stream) => !stream.type)) {
+        throw new Error('Your streams input must be an array of streams');
+      } else if (typeof minAge !== 'number' && typeof maxAge !== 'number') {
+        throw new Error('Min and max age must be a number');
+      } else if (minAge && minAge < 0) {
+        throw new Error('Min age cannot be negative');
+      } else if (maxAge && maxAge < 0) {
+        throw new Error('Max age cannot be negative');
+      } else if (minAge && maxAge && maxAge < minAge) {
+        throw new Error('Max age cannot be less than min age');
+      }
+      // select streams with age that lie within the range.
+      return streams.filter((stream) => {
+        if (minAge && (stream.age ?? 0) < minAge) {
+          return false;
+        }
+        if (maxAge && (stream.age ?? 0) > maxAge) {
+          return false;
+        }
+        return true;
+      });
+    };
     this.parser.functions.size = function (
       streams: ParsedStream[],
       minSize?: string | number,
@@ -385,13 +414,15 @@ export abstract class StreamExpressionEngine {
             'offcloud',
             'premiumize',
             'easynews',
+            'nzbdav',
+            'altmount',
             'easydebrid',
             'debrider',
           ].includes(s)
         )
       ) {
         throw new Error(
-          'Service must be a string and one of: realdebrid, debridlink, alldebrid, torbox, pikpak, seedr, offcloud, premiumize, easynews, easydebrid, debrider'
+          'Service must be a string and one of: realdebrid, debridlink, alldebrid, torbox, pikpak, seedr, offcloud, premiumize, easynews, nzbdav, altmount, easydebrid, debrider'
         );
       }
       return streams.filter((stream) =>
@@ -557,14 +588,12 @@ export abstract class StreamExpressionEngine {
       parsedFile: {
         title: 'Test Title',
         year: '2024',
-        season: 1,
-        episode: 1,
         seasons: [1],
+        episodes: [1],
         resolution: '1080p',
         quality: 'BluRay',
         encode: 'x264',
         releaseGroup: 'TEST',
-        seasonEpisode: ['S01', 'E01'],
         visualTags: ['HDR'],
         audioTags: ['AAC'],
         audioChannels: ['2.0'],
@@ -577,7 +606,7 @@ export abstract class StreamExpressionEngine {
       filename: 'test.mkv',
       folderName: 'Test Folder',
       duration: 7200, // 2 hours in seconds
-      age: '1 day',
+      age: 24, // 1 day in hours
       message: 'Test message',
       torrent: {
         infoHash: 'test-hash',
@@ -709,7 +738,7 @@ export class StreamSelector extends StreamExpressionEngine {
       selectedStreams = ParsedStreams.parse(selectedStreams);
     } catch (error) {
       throw new Error(
-        `Filter condition failed: ${error instanceof Error ? error.message : String(error)}`
+        `Result could not be parsed as stream array: ${formatZodError(error as ZodError)}`
       );
     }
     return selectedStreams;

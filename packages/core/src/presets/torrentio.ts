@@ -21,6 +21,24 @@ export class TorrentioParser extends StreamParser {
     return folderName;
   }
 
+  protected override getFileIdx(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): number | undefined {
+    // url path format /resolve/{service}/{serviceKey}/{hash}/{name}/{fileIdx}/{filename}
+    if (!stream.url) return undefined;
+    try {
+      const url = new URL(stream.url);
+      const parts = url.pathname.split('/');
+      if (parts.length === 8) {
+        const fileIdx = parseInt(parts[6], 10);
+        if (!isNaN(fileIdx)) {
+          return fileIdx;
+        }
+      }
+    } catch {}
+  }
+
   protected override getLanguages(
     stream: Stream,
     currentParsedStream: ParsedStream
@@ -160,7 +178,7 @@ export class TorrentioPreset extends Preset {
         type: 'multi-select',
         required: false,
         options: TorrentioPreset.defaultProviders,
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'services',
@@ -169,7 +187,7 @@ export class TorrentioPreset extends Preset {
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
         required: false,
-        showInNoobMode: false,
+        showInSimpleMode: false,
         options: supportedServices.map((service) => ({
           value: service,
           label: constants.SERVICE_DETAILS[service].name,
@@ -185,7 +203,7 @@ export class TorrentioPreset extends Preset {
         type: 'boolean',
         default: false,
         required: true,
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
     ];
 

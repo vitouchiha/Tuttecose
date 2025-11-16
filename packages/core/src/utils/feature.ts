@@ -123,6 +123,20 @@ export class FeatureControl {
     }
   }
 
+  public static _addPatterns(patterns: string[]): void {
+    const initialCount = this._patternState.patterns.length;
+    const allPatterns = [
+      ...new Set([...this._patternState.patterns, ...patterns]),
+    ];
+    this._patternState.patterns = allPatterns;
+    const newCount = allPatterns.length - initialCount;
+    if (newCount > 0) {
+      logger.info(
+        `Accumulated ${newCount} new regex patterns. Total: ${allPatterns.length}`
+      );
+    }
+  }
+
   /**
    * Fetches patterns from all configured URLs and accumulates them.
    */
@@ -145,17 +159,7 @@ export class FeatureControl {
       .flatMap((result) => result.value);
 
     if (patternsFromUrls.length > 0) {
-      const initialCount = this._patternState.patterns.length;
-      const allPatterns = [
-        ...new Set([...this._patternState.patterns, ...patternsFromUrls]),
-      ];
-      this._patternState.patterns = allPatterns;
-      const newCount = allPatterns.length - initialCount;
-      if (newCount > 0) {
-        logger.info(
-          `Accumulated ${newCount} new regex patterns from URLs. Total: ${allPatterns.length}`
-        );
-      }
+      FeatureControl._addPatterns(patternsFromUrls);
     }
   }
 

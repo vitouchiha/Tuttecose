@@ -29,7 +29,8 @@ export class MediaFlowProxy extends BaseProxy {
   }
 
   protected async generateStreamUrls(
-    streams: ProxyStream[]
+    streams: ProxyStream[],
+    encrypt?: boolean
   ): Promise<string[] | null> {
     const proxyUrl = this.generateProxyUrl('/generate_urls');
 

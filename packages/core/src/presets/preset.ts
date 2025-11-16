@@ -44,7 +44,7 @@ export const baseOptions = (
       'Optionally override either the manifest generated, or override the base url used when generating the manifests',
     type: 'url',
     required: false,
-    showInNoobMode: false,
+    showInSimpleMode: false,
     default: undefined,
   };
   if (baseUrls && baseUrls.length > 1) {
@@ -60,7 +60,7 @@ export const baseOptions = (
         value: url,
       })),
     ];
-    urlOption.showInNoobMode = true;
+    urlOption.showInSimpleMode = true;
   }
   return [
     {
@@ -73,7 +73,7 @@ export const baseOptions = (
     },
     {
       id: 'timeout',
-      name: 'Timeout',
+      name: 'Timeout (ms)',
       description: 'The timeout for this addon',
       type: 'number',
       required: true,
@@ -90,7 +90,7 @@ export const baseOptions = (
       description: 'Optionally override the resources to use ',
       type: 'multi-select',
       required: false,
-      showInNoobMode: false,
+      showInSimpleMode: false,
       default: resources,
       options: resources.map((resource) => ({
         label: constants.RESOURCE_LABELS[resource],

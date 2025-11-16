@@ -75,7 +75,7 @@ export class CometPreset extends StremThruPreset {
         description: 'Include P2P results, even if a debrid service is enabled',
         type: 'boolean',
         default: false,
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'removeTrash',
@@ -84,12 +84,12 @@ export class CometPreset extends StremThruPreset {
           'Remove all trash from results (Adult Content, CAM, Clean Audio, PDTV, R5, Screener, Size, Telecine and Telesync)',
         type: 'boolean',
         default: true,
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'services',
         name: 'Services',
-        showInNoobMode: false,
+        showInSimpleMode: false,
         description:
           'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
         type: 'multi-select',
@@ -100,6 +100,21 @@ export class CometPreset extends StremThruPreset {
         })),
         default: undefined,
         emptyIsUndefined: true,
+      },
+      {
+        id: 'mediaTypes',
+        name: 'Media Types',
+        description:
+          'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
+        type: 'multi-select',
+        required: false,
+        showInSimpleMode: false,
+        options: [
+          { label: 'Movie', value: 'movie' },
+          { label: 'Series', value: 'series' },
+          { label: 'Anime', value: 'anime' },
+        ],
+        default: [],
       },
       {
         id: 'socials',
@@ -178,6 +193,7 @@ export class CometPreset extends StremThruPreset {
           : 'p2p',
       manifestUrl: this.generateManifestUrl(userData, options, serviceId),
       enabled: true,
+      mediaTypes: options.mediaTypes || [],
       resources: options.resources || this.METADATA.SUPPORTED_RESOURCES,
       timeout: options.timeout || this.METADATA.TIMEOUT,
       preset: {

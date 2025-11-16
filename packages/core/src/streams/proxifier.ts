@@ -1,5 +1,5 @@
 import { ParsedStream, UserData } from '../db/schemas.js';
-import { createLogger } from '../utils/index.js';
+import { constants, createLogger } from '../utils/index.js';
 import { createProxy } from '../proxy/index.js';
 
 const logger = createLogger('proxy');
@@ -18,6 +18,15 @@ class Proxifier {
       return false;
     }
     if (stream.proxied) {
+      return false;
+    }
+    // never proxy nzbdav or altmount streams via global proxy
+    if (
+      stream.service &&
+      [constants.NZBDAV_SERVICE, constants.ALTMOUNT_SERVICE].includes(
+        stream.service.id
+      )
+    ) {
       return false;
     }
     let streamUrl: URL;
@@ -67,20 +76,58 @@ class Proxifier {
     if (streamsToProxy.length === 0) {
       return streams;
     }
+
+    const normaliseHeaders = (
+      headers: Record<string, string> | undefined
+    ): Record<string, string> | undefined => {
+      if (!headers) {
+        return undefined;
+      }
+      const normalisedHeaders: Record<string, string> = {};
+      for (const [key, value] of Object.entries(headers)) {
+        normalisedHeaders[key.trim().toLowerCase()] = value.trim();
+      }
+      return normalisedHeaders;
+    };
     logger.info(`Proxying ${streamsToProxy.length} streams`);
 
     const proxy = createProxy(this.userData.proxy);
 
     const proxiedUrls = streamsToProxy.length
       ? await proxy.generateUrls(
-          streamsToProxy.map(({ stream }) => ({
-            url: stream.url!,
-            filename: stream.filename,
-            headers: {
-              request: stream.requestHeaders,
-              response: stream.responseHeaders,
-            },
-          }))
+          streamsToProxy.map(({ stream }) => {
+            let url: string = stream.url!;
+            let parsedUrl: URL | undefined;
+
+            try {
+              parsedUrl = new URL(url);
+            } catch {}
+
+            const headers = {
+              response: normaliseHeaders(stream.responseHeaders),
+              request: normaliseHeaders(stream.requestHeaders),
+            };
+            if (parsedUrl && parsedUrl.username && parsedUrl.password) {
+              headers.request = {
+                ...headers.request,
+                authorization:
+                  'Basic ' +
+                  Buffer.from(
+                    `${decodeURIComponent(
+                      parsedUrl.username
+                    )}:${decodeURIComponent(parsedUrl.password)}`
+                  ).toString('base64'),
+              };
+              parsedUrl.username = '';
+              parsedUrl.password = '';
+              url = parsedUrl.toString();
+            }
+            return {
+              url,
+              filename: stream.filename,
+              headers,
+            };
+          })
         )
       : [];
 

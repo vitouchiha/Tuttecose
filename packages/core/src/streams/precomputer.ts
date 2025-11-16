@@ -23,7 +23,7 @@ class StreamPrecomputer {
   public async precompute(streams: ParsedStream[], type: string, id: string) {
     let queryType = type;
     if (AnimeDatabase.getInstance().isAnime(id)) {
-      queryType = 'anime';
+      queryType = `anime.${type}`;
     }
     const preferredRegexPatterns =
       (await FeatureControl.isRegexAllowed(

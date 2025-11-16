@@ -172,12 +172,18 @@ export class TorrentGalaxyAddon extends BaseDebridAddon<TorrentGalaxyAddonConfig
       }
       seenTorrents.add(hash);
 
+      // convert unix timestamp to age in hours
+      const age = Math.ceil(
+        (Date.now() - result.age * 1000) / (1000 * 60 * 60)
+      );
+
       torrents.push({
         hash,
         downloadUrl,
         sources: [],
         indexer: `TGx | ${result.user}`,
         seeders: result.seeders,
+        age: age,
         title: result.name,
         size: result.size,
         type: 'torrent',

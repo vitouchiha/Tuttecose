@@ -3,6 +3,7 @@ export interface Metadata {
   titles?: string[];
   year?: number;
   yearEnd?: number;
+  releaseDate?: string;
   seasons?: {
     season_number: number;
     episode_count: number;

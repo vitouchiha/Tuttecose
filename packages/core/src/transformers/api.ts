@@ -1,4 +1,5 @@
 import {
+  ParsedFileSchema,
   ParsedStream,
   Resource,
   SubtitleSchema,
@@ -20,7 +21,7 @@ import { z } from 'zod';
 const SearchApiResultSchema = z.object({
   infoHash: z.string().nullable(),
   seeders: z.number().nullable(),
-  age: z.string().nullable(),
+  age: z.number().nullable(),
   sources: z.array(z.string()).nullable(),
   ytId: z.string().nullable(),
   externalUrl: z.string().nullable(),
@@ -42,6 +43,7 @@ const SearchApiResultSchema = z.object({
   countryWhitelist: z.array(z.string()),
   requestHeaders: z.partialRecord(z.string(), z.string()),
   responseHeaders: z.partialRecord(z.string(), z.string()),
+  parsedFile: ParsedFileSchema.optional(),
 });
 
 export type SearchApiResult = z.infer<typeof SearchApiResultSchema>;
@@ -87,6 +89,7 @@ export class ApiTransformer {
         countryWhitelist: stream.countryWhitelist ?? [],
         requestHeaders: stream.requestHeaders ?? {},
         responseHeaders: stream.responseHeaders ?? {},
+        parsedFile: stream.parsedFile,
       }))
       ?.filter((result) => {
         const hasRequiredFields = requiredFields.every(

@@ -1,7 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { createLogger, Env } from '@aiostreams/core';
+import { isIP } from 'net';
 
 const logger = createLogger('server');
+
+// Helper function to validate if a string is a valid IP address
+function isValidIp(ip: string | undefined): boolean {
+  if (!ip) return false;
+  // isIP returns 4 for IPv4, 6 for IPv6, and 0 for invalid
+  return isIP(ip) !== 0;
+}
 
 const isIpInRange = (ip: string, range: string) => {
   if (range.includes('/')) {
@@ -80,7 +88,7 @@ export const ipMiddleware = (
       req.get('CF-Connecting-IP') ||
       ip
     : ip;
-  req.userIp = isPrivateIp(userIp) ? undefined : userIp;
-  req.requestIp = requestIp;
+  req.userIp = isPrivateIp(userIp) || !isValidIp(userIp) ? undefined : userIp;
+  req.requestIp = isValidIp(requestIp) ? requestIp : undefined;
   next();
 };

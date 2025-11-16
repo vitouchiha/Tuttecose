@@ -18,6 +18,10 @@ export const NabAddonConfigSchema = BaseDebridConfigSchema.extend({
 });
 export type NabAddonConfig = z.infer<typeof NabAddonConfigSchema>;
 
+interface SearchResultMetadata {
+  searchType: 'id' | 'query';
+}
+
 export abstract class BaseNabAddon<
   C extends NabAddonConfig,
   A extends BaseNabApi<'torznab' | 'newznab'>,
@@ -27,11 +31,15 @@ export abstract class BaseNabAddon<
   protected async performSearch(
     parsedId: ParsedId,
     metadata: SearchMetadata
-  ): Promise<SearchResultItem<A['namespace']>[]> {
+  ): Promise<{
+    results: SearchResultItem<A['namespace']>[];
+    meta: SearchResultMetadata;
+  }> {
     const start = Date.now();
     const queryParams: Record<string, string> = {};
     const queryLimit = createQueryLimit();
     let capabilities: Capabilities;
+    let searchType: SearchResultMetadata['searchType'] = 'id';
     try {
       capabilities = await this.api.getCapabilities();
     } catch (error) {
@@ -118,6 +126,7 @@ export abstract class BaseNabAddon<
         addSeasonEpisode: !queryParams.season && !queryParams.ep,
         useAllTitles: useAllTitles(this.userData.url),
       });
+      searchType = 'query';
     }
     let results: SearchResultItem<A['namespace']>[] = [];
     if (queries.length > 0) {
@@ -139,7 +148,12 @@ export abstract class BaseNabAddon<
         results: results.length,
       }
     );
-    return results;
+    return {
+      results: results,
+      meta: {
+        searchType,
+      },
+    };
   }
 
   private getSearchFunction(

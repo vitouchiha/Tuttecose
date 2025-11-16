@@ -65,6 +65,7 @@ import { KnabenPreset } from './knaben.js';
 import { BitmagnetPreset } from './bitmagnet.js';
 import { SootioPreset } from './sootio.js';
 import { TorrentGalaxyPreset } from './torrentGalaxy.js';
+import { UsenetStreamerPreset } from './usenetStreamer.js';
 let PRESET_LIST: string[] = [
   'custom',
   'torznab',
@@ -79,11 +80,12 @@ let PRESET_LIST: string[] = [
   'zilean',
   'knaben',
   'torrent-galaxy',
-  Env.BUILTIN_BITMAGNET_URL ? 'bitmagnet' : '',
+  'bitmagnet',
   'animetosho',
   'prowlarr',
   'jackett',
   'nzbhydra',
+  'stremio-gdrive',
   'jackettio',
   'peerflix',
   'orion',
@@ -96,14 +98,12 @@ let PRESET_LIST: string[] = [
   'easynews',
   'easynewsPlus',
   'easynewsPlusPlus',
+  'usenet-streamer',
   'dmm-cast',
   'nuvio-streams',
   'webstreamr',
   'astream',
   'streamasia',
-  Env.BUILTIN_GDRIVE_CLIENT_ID && Env.BUILTIN_GDRIVE_CLIENT_SECRET
-    ? 'stremio-gdrive'
-    : '',
   'usa-tv',
   'argentina-tv',
   'debridio-tv',
@@ -147,6 +147,7 @@ export class PresetManager {
         SUPPORTED_SERVICES: metadata.SUPPORTED_SERVICES,
         OPTIONS: metadata.OPTIONS,
         BUILTIN: metadata.BUILTIN,
+        DISABLED: metadata.DISABLED,
       })
     );
   }
@@ -279,6 +280,8 @@ export class PresetManager {
         return SootioPreset;
       case 'torrent-galaxy':
         return TorrentGalaxyPreset;
+      case 'usenet-streamer':
+        return UsenetStreamerPreset;
       default:
         throw new Error(`Preset ${id} not found`);
     }

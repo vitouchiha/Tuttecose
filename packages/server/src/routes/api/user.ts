@@ -7,16 +7,18 @@ import {
   UserRepository,
 } from '@aiostreams/core';
 import { userApiRateLimiter } from '../../middlewares/ratelimit.js';
+import { resolveUuidAliasForUserApi } from '../../middlewares/alias.js';
 import { createResponse } from '../../utils/responses.js';
 const router: Router = Router();
 
 const logger = createLogger('server');
 
 router.use(userApiRateLimiter);
+router.use(resolveUuidAliasForUserApi);
 
 // checking existence of a user
 router.head('/', async (req, res, next) => {
-  const { uuid } = req.query;
+  const uuid = req.uuid || req.query.uuid;
   if (typeof uuid !== 'string') {
     next(
       new APIError(
@@ -55,7 +57,10 @@ router.head('/', async (req, res, next) => {
 
 // getting user details
 router.get('/', async (req, res, next) => {
-  const { uuid, password } = req.query;
+  const { uuid, password } = {
+    uuid: req.uuid || req.query.uuid,
+    password: req.query.password,
+  };
   if (typeof uuid !== 'string' || typeof password !== 'string') {
     next(
       new APIError(
@@ -144,7 +149,10 @@ router.post('/', async (req, res, next) => {
 
 // updating user details
 router.put('/', async (req, res, next) => {
-  const { uuid, password, config } = req.body;
+  const { uuid, password, config } = {
+    ...req.body,
+    uuid: req.uuid || req.body.uuid,
+  };
   if (!uuid || !password || !config) {
     next(
       new APIError(
@@ -180,7 +188,10 @@ router.put('/', async (req, res, next) => {
 });
 
 router.delete('/', async (req, res, next) => {
-  const { uuid, password } = req.body;
+  const { uuid, password } = {
+    ...req.body,
+    uuid: req.uuid || req.body.uuid,
+  };
   if (!uuid || !password) {
     next(new APIError(constants.ErrorCode.MISSING_REQUIRED_FIELDS));
     return;

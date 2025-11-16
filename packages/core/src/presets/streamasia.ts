@@ -111,6 +111,47 @@ export class StreamAsiaPreset extends Preset {
         Env.DEFAULT_STREAMASIA_TIMEOUT
       ),
       {
+        id: 'ddlCatalogs',
+        name: 'Direct Download Catalogs',
+        description: 'Debrid-only streams from file hosters',
+        type: 'multi-select',
+        required: false,
+        options: [
+          {
+            value: 'dmx-search-results',
+            label: 'Source 1: Search Results',
+          },
+          {
+            value: 'dmx-new-completed-korean-drama',
+            label: 'Source 1: New Completed Korean Drama',
+          },
+          {
+            value: 'dmx-new-korean-movies',
+            label: 'Source 1: New Korean Movies',
+          },
+          {
+            value: 'dmx-new-korean-variety-shows',
+            label: 'Source 1: New Korean Variety Shows',
+          },
+          {
+            value: 'mkx-search-results',
+            label: 'Source 2: Search Results',
+          },
+          {
+            value: 'mkx-new-korean-drama',
+            label: 'Source 2: New Korean Drama',
+          },
+          {
+            value: 'mkx-new-chinese-drama',
+            label: 'Source 2: New Chinese Drama',
+          },
+          {
+            value: 'mkx-new-japanese-drama',
+            label: 'Source 2: New Japanese Drama',
+          },
+        ],
+      },
+      {
         id: 'kisskhCatalogs',
         name: 'Kisskh Catalogs',
         description: 'The catalogs to use for Kisskh',
@@ -183,49 +224,6 @@ export class StreamAsiaPreset extends Preset {
           },
         ],
       },
-
-      {
-        id: 'ddlCatalogs',
-        name: 'Direct Download Catalogs',
-        description: 'Debrid-only streams from file hosters',
-        type: 'multi-select',
-        required: false,
-        options: [
-          {
-            value: 'dmx-search-results',
-            label: 'Source 1: Search Results',
-          },
-          {
-            value: 'dmx-new-completed-korean-drama',
-            label: 'Source 1: New Completed Korean Drama',
-          },
-          {
-            value: 'dmx-new-korean-movies',
-            label: 'Source 1: New Korean Movies',
-          },
-          {
-            value: 'dmx-new-korean-variety-shows',
-            label: 'Source 1: New Korean Variety Shows',
-          },
-          {
-            value: 'mkx-search-results',
-            label: 'Source 2: Search Results',
-          },
-          {
-            value: 'mkx-new-korean-drama',
-            label: 'Source 2: New Korean Drama',
-          },
-          {
-            value: 'mkx-new-chinese-drama',
-            label: 'Source 2: New Chinese Drama',
-          },
-          {
-            value: 'mkx-new-japanese-drama',
-            label: 'Source 2: New Japanese Drama',
-          },
-        ],
-      },
-
       {
         id: 'hideUpcomingShows',
         name: 'Hide Upcoming Shows',
@@ -424,6 +422,7 @@ there is no need to provide these details here.
     const encodedUserData = this.base64EncodeJSON(
       {
         'kisskh-catalogs': options.kisskhCatalogs,
+        'hidden-kisskh-catalogs': [],
         'kdhd-catalogs': options.kdhdCatalogs,
         'ottv-catalogs': options.ottvCatalogs,
         'ddl-catalogs': options.ddlCatalogs,
@@ -444,7 +443,7 @@ there is no need to provide these details here.
             : [],
         debridConfig: debridConfig,
         hideUnsupportedHosters: options.hideUnsupportedHosters,
-        version: '1.3.1',
+        version: '1.3.5',
       },
       'urlEncode'
     );

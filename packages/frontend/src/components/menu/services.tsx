@@ -203,7 +203,9 @@ function Content() {
         // Check if any required credential is missing
         return (
           service.enabled &&
-          svcMeta.credentials.some((cred) => !service.credentials?.[cred.id])
+          svcMeta.credentials.some(
+            (cred) => !service.credentials?.[cred.id] && cred.required
+          )
         );
       })
       .map((service) => status.settings.services[service.id]?.name) ?? [];
@@ -570,9 +572,12 @@ function ServiceModal({
         {credentials.map((opt) => (
           <TemplateOption
             key={opt.id}
-            option={opt}
+            option={{
+              ...opt,
+              required: false, // override required to false to allow unsetting
+            }}
             value={opt.forced || opt.default || values[opt.id]}
-            onChange={(v) => handleCredentialChange(opt.id, v)}
+            onChange={(v) => handleCredentialChange(opt.id, v || undefined)}
           />
         ))}
         <div className="flex gap-2">

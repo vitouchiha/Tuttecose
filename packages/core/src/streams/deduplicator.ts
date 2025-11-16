@@ -59,8 +59,14 @@ class StreamDeduplicator {
         currentStreamKeyStrings.push(`filename:${normalisedFilename}`);
       }
 
+      // Some addons provide fileIdx (to distinguish multiple files
+      // within a single torrent), while others don't. This creates an unavoidable trade-off
+      // where addons that provide fileIdx will not deduplicate properly with those that don't
+      // via infoHash alone.
       if (deduplicationKeys.includes('infoHash') && stream.torrent?.infoHash) {
-        currentStreamKeyStrings.push(`infoHash:${stream.torrent.infoHash}`);
+        currentStreamKeyStrings.push(
+          `infoHash:${stream.torrent.infoHash}${stream.torrent.fileIdx ?? 0}`
+        );
       }
 
       if (deduplicationKeys.includes('smartDetect')) {

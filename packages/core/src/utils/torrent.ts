@@ -138,7 +138,9 @@ export class TorrentClient {
       const redirectUrl = response.headers.get('Location');
       if (!redirectUrl) throw new Error('Redirect location not found');
 
-      const hash = validateInfoHash(extractInfoHashFromMagnet(redirectUrl));
+      const hash = validateInfoHash(
+        extractInfoHashFromMagnet(redirectUrl.toLowerCase())
+      );
       if (!hash) {
         if (redirectCount >= 3) {
           throw new Error(`Too many redirects: ${redirectUrl}`);

@@ -1,6 +1,8 @@
 import { PARSE_REGEX } from './regex.js';
 import { ParsedFile } from '../db/schemas.js';
-import ptt from './ptt.js';
+// import ptt from './ptt.js';
+// import { parseTorrentTitle } from './parse-torrent-title/index.js';
+import { parseTorrentTitle } from '@viren070/parse-torrent-title';
 
 function matchPattern(
   filename: string,
@@ -22,7 +24,7 @@ function matchMultiplePatterns(
 
 class FileParser {
   static parse(filename: string): ParsedFile {
-    const parsed = ptt.parse(filename);
+    const parsed = parseTorrentTitle(filename);
     if (
       ['vinland', 'furiosaamadmax', 'horizonanamerican'].includes(
         (parsed.title || '')
@@ -54,30 +56,10 @@ class FileParser {
     const getPaddedNumber = (number: number, length: number) =>
       number.toString().padStart(length, '0');
 
-    const releaseGroup = filename.match(PARSE_REGEX.releaseGroup)?.[1] ?? parsed.group;
+    const releaseGroup =
+      filename.match(PARSE_REGEX.releaseGroup)?.[1] ?? parsed.group;
     const title = parsed.title;
     const year = parsed.year ? parsed.year.toString() : undefined;
-    const season = parsed.season;
-    const seasons = parsed.seasons;
-    const episode = parsed.episode;
-    const formattedSeasonString = seasons?.length
-      ? seasons.length === 1
-        ? `S${getPaddedNumber(seasons[0], 2)}`
-        : `S${getPaddedNumber(seasons[0], 2)}-${getPaddedNumber(
-            seasons[seasons.length - 1],
-            2
-          )}`
-      : season
-        ? `S${getPaddedNumber(season, 2)}`
-        : undefined;
-    const formattedEpisodeString = episode
-      ? `E${getPaddedNumber(episode, 2)}`
-      : undefined;
-
-    const seasonEpisode = [
-      formattedSeasonString,
-      formattedEpisodeString,
-    ].filter((v) => v !== undefined);
 
     return {
       resolution,
@@ -90,10 +72,18 @@ class FileParser {
       releaseGroup,
       title,
       year,
-      season,
-      seasons,
-      episode,
-      seasonEpisode,
+      edition: parsed.edition,
+      remastered: parsed.remastered ?? false,
+      repack: parsed.repack ?? false,
+      uncensored: parsed.uncensored ?? false,
+      unrated: parsed.unrated ?? false,
+      upscaled: parsed.upscaled ?? false,
+      network: parsed.network,
+      container: parsed.container,
+      extension: parsed.extension,
+      seasons: parsed.seasons,
+      episodes: parsed.episodes,
+      seasonPack: !!(parsed.seasons?.length && !parsed.episodes?.length),
     };
   }
 }

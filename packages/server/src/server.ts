@@ -1,4 +1,6 @@
 import app from './app.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 import {
   Env,
@@ -9,8 +11,9 @@ import {
   logStartupFooter,
   Cache,
   FeatureControl,
-  PTT,
   AnimeDatabase,
+  ProwlarrAddon,
+  TemplateManager,
 } from '@aiostreams/core';
 
 const logger = createLogger('server');
@@ -20,15 +23,6 @@ async function initialiseDatabase() {
     await DB.getInstance().initialise(Env.DATABASE_URI, []);
   } catch (error) {
     logger.error('Failed to initialise database:', error);
-    throw error;
-  }
-}
-
-async function initialisePTT() {
-  try {
-    await PTT.initialise();
-  } catch (error) {
-    logger.error('Failed to initialise PTT Server:', error);
     throw error;
   }
 }
@@ -57,14 +51,31 @@ async function initialiseAnimeDatabase() {
   }
 }
 
+async function initialiseProwlarr() {
+  try {
+    await ProwlarrAddon.fetchpreconfiguredIndexers();
+  } catch (error) {
+    logger.error('Failed to initialise Prowlarr:', error);
+  }
+}
+
+async function initialiseTemplates() {
+  try {
+    TemplateManager.loadTemplates();
+  } catch (error) {
+    logger.error('Failed to initialise templates:', error);
+  }
+}
+
 async function start() {
   try {
     logStartupInfo();
+    await initialiseTemplates();
     await initialiseDatabase();
     await initialiseRedis();
-    await initialisePTT();
     initialiseAnimeDatabase();
     FeatureControl.initialise();
+    await initialiseProwlarr();
     if (Env.PRUNE_MAX_DAYS >= 0) {
       startAutoPrune();
     }
@@ -86,7 +97,6 @@ async function start() {
 
 async function shutdown() {
   await Cache.close();
-  await PTT.cleanup();
   FeatureControl.cleanup();
   await DB.getInstance().close();
 }

@@ -1129,7 +1129,7 @@ export class AIOStreams {
         }
       } catch (error) {
         logger.warn(
-          `Failed to get ${label}, retrying... (${attempt}/${maxRetries})`
+          `Failed to get ${label}, retrying... (${attempt}/${maxRetries}), error=${error instanceof Error ? error.message : String(error)}`
         );
       }
     }

@@ -81,6 +81,58 @@ export function applyMigrations(config: any): UserData {
   migrateHOSBS('excluded');
   migrateHOSBS('included');
 
+  // migrate comparisons of queryType to 'anime' to 'anime.series' or 'anime.movie'
+  const migrateAnimeQueryTypeInExpression = (expr?: string) => {
+    if (typeof expr !== 'string') return expr as any;
+    let updated = expr.replace(
+      /queryType\s*==\s*(["'])anime\1/g,
+      "(queryType == 'anime.series' or queryType == 'anime.movie')"
+    );
+    updated = updated.replace(
+      /(["'])anime\1\s*==\s*queryType/g,
+      "(queryType == 'anime.series' or queryType == 'anime.movie')"
+    );
+    updated = updated.replace(
+      /queryType\s*!=\s*(["'])anime\1/g,
+      "(queryType != 'anime.series' and queryType != 'anime.movie')"
+    );
+    updated = updated.replace(
+      /(["'])anime\1\s*!=\s*queryType/g,
+      "(queryType != 'anime.series' and queryType != 'anime.movie')"
+    );
+    return updated;
+  };
+
+  const expressionLists = [
+    'excludedStreamExpressions',
+    'requiredStreamExpressions',
+    'includedStreamExpressions',
+    'preferredStreamExpressions',
+  ] as const;
+
+  for (const key of expressionLists) {
+    if (Array.isArray((config as any)[key])) {
+      (config as any)[key] = (config as any)[key].map((expr: unknown) =>
+        typeof expr === 'string'
+          ? migrateAnimeQueryTypeInExpression(expr)
+          : expr
+      );
+    }
+  }
+
+  if (config.dynamicAddonFetching?.condition) {
+    config.dynamicAddonFetching.condition = migrateAnimeQueryTypeInExpression(
+      config.dynamicAddonFetching.condition
+    );
+  }
+
+  if (config.groups?.groupings) {
+    config.groups.groupings = config.groups.groupings.map((group: any) => ({
+      ...group,
+      condition: migrateAnimeQueryTypeInExpression(group.condition),
+    }));
+  }
+
   return config;
 }
 const DefaultUserData: UserData = {
@@ -104,11 +156,39 @@ const DefaultUserData: UserData = {
         direction: 'desc',
       },
       {
+        key: 'resolution',
+        direction: 'desc',
+      },
+      {
         key: 'library',
         direction: 'desc',
       },
       {
-        key: 'resolution',
+        key: 'regexPatterns',
+        direction: 'desc',
+      },
+      {
+        key: 'streamType',
+        direction: 'desc',
+      },
+      {
+        key: 'visualTag',
+        direction: 'desc',
+      },
+      {
+        key: 'audioTag',
+        direction: 'desc',
+      },
+      {
+        key: 'audioChannel',
+        direction: 'desc',
+      },
+      {
+        key: 'encode',
+        direction: 'desc',
+      },
+      {
+        key: 'language',
         direction: 'desc',
       },
       {
@@ -180,7 +260,8 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       newData.proxy = {
         ...newData.proxy,
         enabled: forced.proxy.enabled ?? defaults.proxy?.enabled ?? undefined,
-        id: (forced.proxy.id ?? defaults.proxy?.id ?? 'mediaflow') as
+        id: (forced.proxy.id ?? defaults.proxy?.id ?? 'builtin') as
+          | 'builtin'
           | 'mediaflow'
           | 'stremthru'
           | undefined,

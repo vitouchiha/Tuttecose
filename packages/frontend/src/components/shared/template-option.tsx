@@ -186,7 +186,9 @@ const TemplateOption: React.FC<TemplateOptionProps> = ({
             disabled={isDisabled}
           />
           {description && (
-            <div className="text-xs text-[--muted] mt-1">{description}</div>
+            <div className="text-xs text-[--muted] mt-1">
+              <MarkdownLite>{description}</MarkdownLite>
+            </div>
           )}
         </div>
       );
@@ -254,7 +256,9 @@ const TemplateOption: React.FC<TemplateOptionProps> = ({
             />
           )}
           {description && (
-            <div className="text-xs text-[--muted] mt-1">{description}</div>
+            <div className="text-xs text-[--muted] mt-1">
+              <MarkdownLite>{description}</MarkdownLite>
+            </div>
           )}
         </div>
       );

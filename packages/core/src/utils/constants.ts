@@ -21,6 +21,7 @@ export enum ErrorCode {
   METHOD_NOT_ALLOWED = 'METHOD_NOT_ALLOWED',
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   BAD_REQUEST = 'BAD_REQUEST',
+  UNAUTHORIZED = 'UNAUTHORIZED',
 }
 
 interface ErrorDetails {
@@ -88,6 +89,10 @@ export const ErrorMap: Record<ErrorCode, ErrorDetails> = {
   [ErrorCode.BAD_REQUEST]: {
     statusCode: 400,
     message: 'Bad request',
+  },
+  [ErrorCode.UNAUTHORIZED]: {
+    statusCode: 401,
+    message: 'Unauthorized',
   },
 };
 
@@ -198,6 +203,8 @@ const PIKPAK_SERVICE = 'pikpak';
 const OFFCLOUD_SERVICE = 'offcloud';
 const SEEDR_SERVICE = 'seedr';
 const EASYNEWS_SERVICE = 'easynews';
+const NZBDAV_SERVICE = 'nzbdav';
+const ALTMOUNT_SERVICE = 'altmount';
 
 const SERVICES = [
   REALDEBRID_SERVICE,
@@ -212,6 +219,8 @@ const SERVICES = [
   OFFCLOUD_SERVICE,
   SEEDR_SERVICE,
   EASYNEWS_SERVICE,
+  NZBDAV_SERVICE,
+  ALTMOUNT_SERVICE,
 ] as const;
 
 export const BUILTIN_SUPPORTED_SERVICES = [
@@ -224,6 +233,8 @@ export const BUILTIN_SUPPORTED_SERVICES = [
   DEBRIDER_SERVICE,
   PIKPAK_SERVICE,
   OFFCLOUD_SERVICE,
+  NZBDAV_SERVICE,
+  ALTMOUNT_SERVICE,
 ] as const;
 
 export type ServiceId = (typeof SERVICES)[number];
@@ -231,8 +242,13 @@ export type BuiltinServiceId = (typeof BUILTIN_SUPPORTED_SERVICES)[number];
 
 export const MEDIAFLOW_SERVICE = 'mediaflow' as const;
 export const STREMTHRU_SERVICE = 'stremthru' as const;
+export const BUILTIN_SERVICE = 'builtin' as const;
 
-export const PROXY_SERVICES = [MEDIAFLOW_SERVICE, STREMTHRU_SERVICE] as const;
+export const PROXY_SERVICES = [
+  BUILTIN_SERVICE,
+  STREMTHRU_SERVICE,
+  MEDIAFLOW_SERVICE,
+] as const;
 export type ProxyServiceId = (typeof PROXY_SERVICES)[number];
 
 export const PROXY_SERVICE_DETAILS: Record<
@@ -244,13 +260,12 @@ export const PROXY_SERVICE_DETAILS: Record<
     credentialDescription: string;
   }
 > = {
-  [MEDIAFLOW_SERVICE]: {
-    id: MEDIAFLOW_SERVICE,
-    name: 'MediaFlow Proxy',
-    description:
-      '[MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) is a high performance proxy server which supports HTTP, HLS, and more.',
+  [BUILTIN_SERVICE]: {
+    id: BUILTIN_SERVICE,
+    name: 'Builtin Proxy',
+    description: 'A proxy service that is built into the core of AIOStreams',
     credentialDescription:
-      'The value of your MediaFlow Proxy instance `API_PASSWORD` environment variable.',
+      'A valid username:password pair for this AIOStreams instance, defined in the `AIOSTREAMS_AUTH` environment variable.',
   },
   [STREMTHRU_SERVICE]: {
     id: STREMTHRU_SERVICE,
@@ -258,7 +273,15 @@ export const PROXY_SERVICE_DETAILS: Record<
     description:
       '[StremThru](https://github.com/MunifTanjim/stremthru) is a feature packed companion to Stremio which also offers a HTTP proxy, written in Go.',
     credentialDescription:
-      'A valid credential for your StremThru instance, defined in the `STREMTHRU_PROXY_AUTH` environment variable.',
+      'A valid username:password pair for your StremThru instance, defined in the `STREMTHRU_PROXY_AUTH` environment variable.',
+  },
+  [MEDIAFLOW_SERVICE]: {
+    id: MEDIAFLOW_SERVICE,
+    name: 'MediaFlow Proxy',
+    description:
+      '[MediaFlow Proxy](https://github.com/mhdzumair/mediaflow-proxy) is a high performance proxy server which supports HTTP, HLS, and more.',
+    credentialDescription:
+      'The value of your MediaFlow Proxy instance `API_PASSWORD` environment variable.',
   },
 };
 
@@ -363,6 +386,137 @@ const SERVICE_DETAILS: Record<
       },
     ],
   },
+  [NZBDAV_SERVICE]: {
+    id: NZBDAV_SERVICE,
+    name: 'NzbDAV',
+    shortName: 'ND',
+    knownNames: ['ND'],
+    signUpText: 'Stream usenet directly from your provider via Nzb DAV.',
+    credentials: [
+      {
+        id: 'note',
+        name: 'Configuration Help',
+        description: `**URL:** Use internal URL for local setups (e.g., http://nzbdav:3000), otherwise use a public URL.\n\n**Public URL:** Only needed if URL is local but streams need to be publicly accessible. Leave blank if URL is public or using a proxy.\n\n**Security Note:** WebDAV credentials are exposed in stream URLs unless proxied. To proxy, provide the Auth Token below (built-in proxy only).\n\nFor detailed setup instructions, see the [Usenet Wiki](https://github.com/Viren070/AIOStreams/wiki/Usenet#configuring-the-service-in-aiostreams).`,
+        type: 'alert',
+        intent: 'info',
+        required: false,
+      },
+      {
+        id: 'url',
+        name: 'NzbDAV URL',
+        description:
+          'The base URL of your NZB DAV instance. E.g., http://nzbdav:3000',
+        type: 'string',
+        required: true,
+      },
+      {
+        id: 'publicUrl',
+        name: 'Public NzbDAV URL (Optional)',
+        description:
+          'The public URL of your NzbDAV instance. Optional, see note above for details.',
+        type: 'string',
+        required: false,
+      },
+      {
+        id: 'apiKey',
+        name: 'NzbDAV API Key',
+        description:
+          'Your Nzb DAV API Key, found in the SABnzbd section in settings.',
+        type: 'password',
+        required: true,
+      },
+      {
+        id: 'username',
+        name: 'NzbDAV WebDAV Username',
+        description:
+          'Your Nzb DAV WebDAV Username. Found in the WebDAV section in settings.',
+        type: 'string',
+        required: false,
+      },
+      {
+        id: 'password',
+        name: 'NzbDAV WebDAV Password',
+        description:
+          'Your NzbDAV WebDAV Password. Found in the WebDAV section in settings.',
+        type: 'password',
+        required: false,
+      },
+      {
+        id: 'aiostreamsAuth',
+        name: 'AIOStreams Auth Token (Optional)',
+        description:
+          'If you would like to proxy your NzbDAV streams, you will need to provide a username:password pair for your AIOStreams instance, defined in the `AIOSTREAMS_AUTH` environment variable. **Other proxies will not work and you must define it here only**',
+        type: 'password',
+        required: false,
+      },
+    ],
+  },
+  [ALTMOUNT_SERVICE]: {
+    id: ALTMOUNT_SERVICE,
+    name: 'AltMount',
+    shortName: 'AM',
+    knownNames: ['AM'],
+    signUpText: 'Stream usenet directly from your provider via AltMount.',
+    credentials: [
+      {
+        id: 'note',
+        name: 'Configuration Help',
+        description: `**URL:** Use internal URL for local setups (e.g., http://altmount:8000), otherwise use a public URL.\n\n**Public URL:** Only needed if URL is local but streams need to be publicly accessible. Leave blank if URL is public or using a proxy.\n\n**Security Note:** WebDAV credentials are exposed in stream URLs unless proxied. To proxy, provide the Auth Token below (built-in proxy only).\n\nFor detailed setup instructions, see the [Usenet Wiki](https://github.com/Viren070/AIOStreams/wiki/Usenet#configuring-the-service-in-aiostreams).`,
+        type: 'alert',
+        intent: 'info',
+        required: false,
+      },
+      {
+        id: 'url',
+        name: 'Altmount URL',
+        description:
+          'The base URL of your AltMount instance used for requests. e.g., http://altmount:8080',
+        type: 'string',
+        required: true,
+      },
+      {
+        id: 'publicUrl',
+        name: 'Public Altmount URL',
+        description:
+          'The public URL of your AltMount instance. Optional, see note above for details.',
+        type: 'string',
+        required: false,
+      },
+      {
+        id: 'apiKey',
+        name: 'AltMount API Key',
+        description:
+          'Your AltMount API Key, found at `Configuration -> System` in the AltMount Web UI.',
+        type: 'password',
+        required: true,
+      },
+      {
+        id: 'username',
+        name: 'AltMount WebDAV Username',
+        description:
+          'Your AltMount WebDAV Username, found at `Configuration -> WebDAV Server` in the AltMount Web UI.',
+        type: 'string',
+        required: true,
+      },
+      {
+        id: 'password',
+        name: 'AltMount WebDAV Password',
+        description:
+          'Your AltMount WebDAV Password, found at `Configuration -> WebDAV Server` in the AltMount Web UI.',
+        type: 'password',
+        required: true,
+      },
+      {
+        id: 'aiostreamsAuth',
+        name: 'AIOStreams Auth Token (Optional)',
+        description:
+          'If you would like to proxy your AltMount streams, you will need to provide a username:password pair for your AIOStreams instance, defined in the `AIOSTREAMS_AUTH` environment variable. **Other proxies will not work and you must define it here only**',
+        type: 'password',
+        required: false,
+      },
+    ],
+  },
+
   [OFFCLOUD_SERVICE]: {
     id: OFFCLOUD_SERVICE,
     name: 'Offcloud',
@@ -525,6 +679,35 @@ const SERVICE_DETAILS: Record<
   },
 };
 
+const TOP_LEVEL_OPTION_DETAILS: Record<
+  'tmdbApiKey' | 'tmdbAccessToken' | 'rpdbApiKey' | 'tvdbApiKey',
+  {
+    name: string;
+    description: string;
+  }
+> = {
+  tmdbApiKey: {
+    name: 'TMDB API Key',
+    description:
+      'Get your free API key from [here](https://www.themoviedb.org/settings/api). Make sure to copy the 32 character API Key and not the Read Access Token.',
+  },
+  tmdbAccessToken: {
+    name: 'TMDB Access Token',
+    description:
+      'Get your free access token from [here](https://www.themoviedb.org/settings/api). Make sure to copy the Read Access Token and not the 32 character API Key.',
+  },
+  rpdbApiKey: {
+    name: 'RPDB API Key',
+    description:
+      'Get your free API key from [here](https://ratingposterdb.com/api-key/) for posters with ratings.',
+  },
+  tvdbApiKey: {
+    name: 'TVDB API Key',
+    description:
+      'Sign up for a free API Key at [TVDB](https://www.thetvdb.com/api-information) and then get it from your [dashboard](https://www.thetvdb.com/dashboard/account/apikeys).',
+  },
+};
+
 export const DEDUPLICATOR_KEYS = [
   'filename',
   'infoHash',
@@ -670,6 +853,7 @@ const SORT_CRITERIA = [
   'size',
   'service',
   'seeders',
+  'age',
   'addon',
   'regexPatterns',
   'cached',
@@ -684,13 +868,25 @@ export const MAX_SIZE = 100 * 1000 * 1000 * 1000; // 100GB
 export const MIN_SEEDERS = 0;
 export const MAX_SEEDERS = 1000;
 
+export const MIN_AGE_HOURS = 0;
+export const MAX_AGE_HOURS = 6480 * 24; // 6480 days (approx 18 years)
+
 export const DEFAULT_POSTERS = [
   'aHR0cHM6Ly93d3cucG5nbWFydC5jb20vZmlsZXMvMTEvUmlja3JvbGxpbmctUE5HLVBpYy5wbmc=',
 ];
 
 export const DEFAULT_YT_ID = 'eHZGWmpvNVBnRzA=';
 
-export const SORT_CRITERIA_DETAILS = {
+export const SORT_CRITERIA_DETAILS: Record<
+  (typeof SORT_CRITERIA)[number],
+  {
+    name: string;
+    description: string;
+    defaultDirection: 'asc' | 'desc';
+    ascendingDescription: string;
+    descendingDescription: string;
+  }
+> = {
   quality: {
     name: 'Quality',
     description: 'Sort by the quality of the stream',
@@ -784,6 +980,13 @@ export const SORT_CRITERIA_DETAILS = {
     defaultDirection: 'desc',
     ascendingDescription: 'Streams with fewer seeders are preferred',
     descendingDescription: 'Streams with more seeders are preferred',
+  },
+  age: {
+    name: 'Age',
+    description: 'Sort by the age of the stream',
+    defaultDirection: 'desc',
+    ascendingDescription: 'Newer streams are preferred',
+    descendingDescription: 'Older streams are preferred',
   },
   addon: {
     name: 'Addon',
@@ -1023,7 +1226,10 @@ export {
   PIKPAK_SERVICE,
   OFFCLOUD_SERVICE,
   SEEDR_SERVICE,
+  NZBDAV_SERVICE,
+  ALTMOUNT_SERVICE,
   EASYNEWS_SERVICE,
   SERVICE_DETAILS,
+  TOP_LEVEL_OPTION_DETAILS,
   HEADERS_FOR_IP_FORWARDING,
 };

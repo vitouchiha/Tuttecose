@@ -57,7 +57,7 @@ export class CustomPreset extends Preset {
       },
       {
         id: 'timeout',
-        name: 'Timeout',
+        name: 'Timeout (ms)',
         description: 'The timeout for this addon',
         type: 'number',
         default: Env.DEFAULT_TIMEOUT,
@@ -74,7 +74,7 @@ export class CustomPreset extends Preset {
           'Optionally override the resources that are fetched from this addon ',
         type: 'multi-select',
         required: false,
-        showInNoobMode: false,
+        showInSimpleMode: false,
         default: undefined,
         options: RESOURCES.map((resource) => ({
           label: constants.RESOURCE_LABELS[resource],
@@ -88,7 +88,7 @@ export class CustomPreset extends Preset {
           'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
         type: 'multi-select',
         required: false,
-        showInNoobMode: false,
+        showInSimpleMode: false,
         default: [],
         options: [
           {

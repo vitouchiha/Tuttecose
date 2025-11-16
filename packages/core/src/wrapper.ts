@@ -201,6 +201,13 @@ export class Wrapper {
       return this.validateArray(data.streams, StreamSchema, 'streams');
     };
 
+    const cacheKey =
+      this.preset.getCacheKey({
+        resource: 'stream',
+        type,
+        id,
+        options: this.addon.preset.options,
+      }) || this.buildResourceUrl('stream', type, id);
     const streams = await this.makeResourceRequest(
       'stream',
       { type, id },
@@ -217,13 +224,35 @@ export class Wrapper {
     );
     const start = Date.now();
     const parser = new (this.preset.getParser())(this.addon);
-    const parsedStreams = streams
-      .flatMap((stream: Stream) => parser.parse(stream))
-      .filter((stream: any) => !stream.skip);
-    logger.debug(
-      `Parsed ${parsedStreams.length} streams for ${this.getAddonName(this.addon)} in ${getTimeTakenSincePoint(start)}`
-    );
-    return parsedStreams as ParsedStream[];
+    let invalidateCache: boolean = false;
+    try {
+      const parsedStreams = streams
+        .flatMap((stream: Stream) => parser.parse(stream))
+        .filter((stream: any) => !stream.skip);
+      if (parsedStreams.every((stream) => 'skip' in stream || stream.error)) {
+        invalidateCache = true;
+      }
+      logger.debug(
+        `Parsed ${parsedStreams.length} streams for ${this.getAddonName(this.addon)} in ${getTimeTakenSincePoint(start)}`
+      );
+      return parsedStreams as ParsedStream[];
+    } catch (error) {
+      invalidateCache = true;
+      throw error;
+    } finally {
+      if (invalidateCache) {
+        logger.debug(
+          `Invalidating cache entry for ${this.getAddonName(this.addon)}`
+        );
+        streamsCache
+          .delete(cacheKey)
+          .catch((error) =>
+            logger.error(
+              `Failed to invalidate cache entry: ${error instanceof Error ? error.message : error}`
+            )
+          );
+      }
+    }
   }
 
   async getCatalog(
@@ -489,7 +518,8 @@ export class Wrapper {
     extras?: string
   ): string {
     const extrasPath = extras ? `/${extras}` : '';
-    return `${this.baseUrl}/${resource}/${type}/${encodeURIComponent(id)}${extrasPath}.json`;
+    const queryParams = new URL(this.manifestUrl).search;
+    return `${this.baseUrl}/${resource}/${type}/${encodeURIComponent(id)}${extrasPath}.json${queryParams ? `?${queryParams.slice(1)}` : ''}`;
   }
 
   private getAddonName(addon: Addon): string {

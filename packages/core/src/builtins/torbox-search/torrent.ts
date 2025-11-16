@@ -4,6 +4,7 @@ import {
   extractInfoHashFromMagnet,
   extractTrackersFromMagnet,
 } from '../utils/debrid.js';
+import { parseAgeString } from '../../parser/utils.js';
 
 export interface Torrent {
   hash: string;
@@ -12,7 +13,7 @@ export interface Torrent {
   fileIdx?: number;
   size: number;
   indexer: string;
-  age?: string;
+  age?: number;
   seeders?: number;
   type: 'torrent' | 'usenet';
   sources: string[];
@@ -34,7 +35,7 @@ export function convertDataToTorrents(
     title: file.raw_title,
     size: file.size,
     indexer: file.tracker,
-    age: file.age,
+    age: parseAgeString(file.age),
     type: file.type,
     userSearch: file.user_search,
     seeders:

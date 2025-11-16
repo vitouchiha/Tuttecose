@@ -84,6 +84,63 @@ export async function withRetry<T>(
   throw new Error('Unexpected state in retry logic');
 }
 
+export interface TimeoutOptions {
+  /**
+   * Timeout duration in milliseconds
+   * @default 5000
+   */
+  timeout?: number;
+  /**
+   * Optional function to check if the operation should be allowed to proceed
+   * @returns true if operation should proceed, false otherwise
+   */
+  shouldProceed?: () => boolean;
+  /**
+   * Optional function to get context for error logging
+   * @returns string context to include in error logs
+   */
+  getContext?: () => string;
+}
+
+/**
+ * Utility function to execute an async operation with timeout
+ * @param operation The async operation to execute
+ * @param fallback Value to return if operation times out or fails
+ * @param options Timeout configuration options
+ * @returns The result of the operation or fallback value
+ */
+export async function withTimeout<T>(
+  operation: () => Promise<T>,
+  fallback: T,
+  options: TimeoutOptions = {}
+): Promise<T> {
+  const { timeout = 5000, shouldProceed, getContext } = options;
+
+  // Check if operation should proceed
+  if (shouldProceed && !shouldProceed()) {
+    const context = getContext ? ` for ${getContext()}` : '';
+    logger.error(`Operation skipped${context}: Precondition check failed`);
+    return fallback;
+  }
+
+  try {
+    // Create a promise that rejects after timeout
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      const id = setTimeout(() => {
+        clearTimeout(id);
+        reject(new Error(`Operation timed out after ${timeout}ms`));
+      }, timeout);
+    });
+
+    // Race the operation against the timeout
+    return await Promise.race([operation(), timeoutPromise]);
+  } catch (err) {
+    const context = getContext ? ` for ${getContext()}` : '';
+    logger.error(`Operation failed${context}: ${err}`);
+    return fallback;
+  }
+}
+
 /**
  * Base64 URL safe encoding
  * @param data - The data to encode

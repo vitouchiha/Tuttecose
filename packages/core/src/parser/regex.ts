@@ -43,15 +43,17 @@ type PARSE_REGEX = {
 export const PARSE_REGEX: PARSE_REGEX = {
   resolutions: {
     '2160p': createRegex(
-      '(bd|hd|m)?(4k|2160(p|i)?)|u(ltra)?[ .\\-_]?hd|3840\s?x\s?(\d{4})'
+      '(bd|hd|m)?(4k|2160(p|i)?)|u(ltra)?[ .\\-_]?hd|3840\\s?x\\s?(\\d{4})'
     ),
     '1440p': createRegex(
-      '(bd|hd|m)?(1440(p|i)?)|2k|w?q(uad)?[ .\\-_]?hd|2560\s?x(\d{4})'
+      '(bd|hd|m)?(1440(p|i)?)|2k|w?q(uad)?[ .\\-_]?hd|2560\\s?x(\\d{4})'
     ),
     '1080p': createRegex(
-      '(bd|hd|m)?(1080(p|i)?)|f(ull)?[ .\\-_]?hd|1920\s?x\s?(\d{3,4})'
+      '(bd|hd|m)?(1080(p|i)?)|f(ull)?[ .\\-_]?hd|1920\\s?x\\s?(\\d{3,4})'
     ),
-    '720p': createRegex('(bd|hd|m)?((720|800)(p|i)?)|hd|1280\s?x\s?(\d{3,4})'),
+    '720p': createRegex(
+      '(bd|hd|m)?((720|800)(p|i)?)|hd|1280\\s?x\\s?(\\d{3,4})'
+    ),
     '576p': createRegex('(bd|hd|m)?((576|534)(p|i)?)'),
     '480p': createRegex('(bd|hd|m)?(480(p|i)?)|sd'),
     '360p': createRegex('(bd|hd|m)?(360(p|i)?)'),
@@ -61,9 +63,9 @@ export const PARSE_REGEX: PARSE_REGEX = {
   qualities: {
     'BluRay REMUX': createRegex('(bd|br|b|uhd)?remux'),
     BluRay: createRegex(
-      '(?<!remux.*)(blu[ .\\-_]?ray|((bd|br)[ .\\-_]?rip))(?!.*remux)'
+      '(?<!remux.*)(bd|blu[ .\\-_]?ray|((bd|br)[ .\\-_]?rip))(?!.*remux)'
     ),
-    'WEB-DL': createRegex('web[ .\\-_]?(dl)?(?![ .\\-_]?(DLRip|cam))'),
+    'WEB-DL': createRegex('web[ .\\-_]?(dl)?(?![ .\\-_]?(rip|DLRip|cam))'),
     WEBRip: createRegex('web[ .\\-_]?rip'),
     HDRip: createRegex('hd[ .\\-_]?rip|web[ .\\-_]?dl[ .\\-_]?rip'),
     'HC HD-Rip': createRegex('hc|hd[ .\\-_]?rip'),
@@ -92,7 +94,7 @@ export const PARSE_REGEX: PARSE_REGEX = {
   audioTags: {
     Atmos: createRegex('atmos'),
     'DD+': createRegex(
-      '(d(olby)?[ .\\-_]?d(igital)?[ .\\-_]?(p(lus)?|\\+)(?:[ .\\-_]?(5[ .\\-_]?1|7[ .\\-_]?1))?)|e[ .\\-_]?ac[ .\\-_]?3'
+      '(d(olby)?[ .\\-_]?d(igital)?[ .\\-_]?(p(lus)?|\\+)(?:[ .\\-_]?(2[ .\\-_]?0|5[ .\\-_]?1|7[ .\\-_]?1))?)|e[ .\\-_]?ac[ .\\-_]?3'
     ),
     DD: createRegex(
       '(d(olby)?[ .\\-_]?d(igital)?(?:[ .\\-_]?(5[ .\\-_]?1|7[ .\\-_]?1|2[ .\\-_]?0?))?)|(?<!e[ .\\-_]?)ac[ .\\-_]?3'
@@ -130,7 +132,7 @@ export const PARSE_REGEX: PARSE_REGEX = {
     'Dual Audio': createLanguageRegex(
       'dual[ .\\-_]?(audio|lang(uage)?|flac|ac3|aac2?)'
     ),
-    Dubbed: createLanguageRegex('dub(bed)?'),
+    Dubbed: createLanguageRegex('dub(s|bed|bing)?'),
     English: createLanguageRegex('english|eng'),
     Japanese: createLanguageRegex('japanese|jap|jpn'),
     Chinese: createLanguageRegex('chinese|chi'),
@@ -180,5 +182,5 @@ export const PARSE_REGEX: PARSE_REGEX = {
     Latino: createLanguageRegex('latino|lat'),
   },
   releaseGroup:
-    /-[. ]?(?!\d+$|S\d+|\d+x|ep?\d+|[^[]+]$)([^\-. []+[^\-. [)\]\d][^\-. [)\]]*)(?:\[[\w.-]+])?(?=\)|\.\w{2,4}$|$)/i,
+    /-[. ]?(?!\d+$|S\d+|\d+x|ep?\d+|[^[]+]$)([^\-. []+[^\-. [)\]\d][^\-. [)\]]*)(?:\[[\w.-]+])?(?=\)|[.-]+\w{2,4}$|$)/i,
 };

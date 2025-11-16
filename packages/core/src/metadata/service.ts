@@ -38,6 +38,7 @@ export class MetadataService {
           async () => {
             const start = Date.now();
             const titles: string[] = [];
+            let releaseDate: string | undefined;
             let year: number | undefined;
             let yearEnd: number | undefined;
             let seasons:
@@ -66,7 +67,7 @@ export class MetadataService {
             let tvdbId: number | null =
               id.type === 'thetvdbId'
                 ? Number(id.value)
-                : animeEntry?.mappings?.thetvdbId
+                : animeEntry?.mappings?.thetvdbId && type === 'series'
                   ? Number(animeEntry.mappings.thetvdbId)
                   : null;
 
@@ -153,8 +154,10 @@ export class MetadataService {
               logger.debug(`TMDB metadata: ${JSON.stringify(tmdbMetadata)}`);
               if (tmdbMetadata.title) titles.unshift(tmdbMetadata.title);
               if (tmdbMetadata.titles) titles.push(...tmdbMetadata.titles);
-              if (!year && tmdbMetadata.year) year = tmdbMetadata.year;
+              if (tmdbMetadata.year) year = tmdbMetadata.year;
               if (tmdbMetadata.yearEnd) yearEnd = tmdbMetadata.yearEnd;
+              if (tmdbMetadata.releaseDate)
+                releaseDate = tmdbMetadata.releaseDate;
               if (tmdbMetadata.seasons)
                 seasons = tmdbMetadata.seasons.sort(
                   (a, b) => a.season_number - b.season_number
@@ -171,7 +174,7 @@ export class MetadataService {
               const tvdbMetadata = tvdbResult.value;
               if (tvdbMetadata.title) titles.unshift(tvdbMetadata.title);
               if (tvdbMetadata.titles) titles.push(...tvdbMetadata.titles);
-              if (!year && tvdbMetadata.year) year = tvdbMetadata.year;
+              if (tvdbMetadata.year) year = tvdbMetadata.year;
               if (tvdbMetadata.yearEnd) yearEnd = tvdbMetadata.yearEnd;
               tvdbId = tvdbMetadata.tvdbId;
             } else if (tvdbResult.status === 'rejected') {
@@ -242,6 +245,17 @@ export class MetadataService {
                   );
                 }
               }
+
+              if (
+                !releaseDate &&
+                cinemetaData.released &&
+                typeof cinemetaData.released === 'string'
+              ) {
+                const parsedReleaseDate = new Date(cinemetaData.released);
+                if (!isNaN(parsedReleaseDate.getTime())) {
+                  releaseDate = parsedReleaseDate.toISOString().split('T')[0];
+                }
+              }
             } else if (imdbResult.status === 'rejected') {
               logger.warn(
                 `Failed to fetch IMDb metadata for ${imdbId}: ${imdbResult.reason}`
@@ -255,7 +269,7 @@ export class MetadataService {
 
             if (
               !uniqueTitles.length ||
-              (year === undefined && id.mediaType !== 'movie')
+              (year === undefined && id.mediaType === 'movie')
             ) {
               throw new Error(`Could not find metadata for ${id.fullId}`);
             }
@@ -275,13 +289,14 @@ export class MetadataService {
               year,
               yearEnd,
               seasons,
+              releaseDate,
               tmdbId,
               tvdbId,
             };
           },
           {
-            timeout: 2500,
-            ttl: 5000,
+            timeout: 10000,
+            ttl: 12000,
             retryInterval: 100,
           }
         );

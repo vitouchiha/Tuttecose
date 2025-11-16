@@ -978,7 +978,7 @@ function AddonModal({
   let dynamicOptions: Option[] = presetMetadata?.OPTIONS || [];
   if (configMode === 'noob') {
     dynamicOptions = dynamicOptions.filter((opt: any) => {
-      if (opt?.showInNoobMode === false) return false;
+      if (opt?.showInSimpleMode === false) return false;
       return true;
     });
   }

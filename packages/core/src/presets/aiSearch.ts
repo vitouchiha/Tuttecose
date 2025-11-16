@@ -134,7 +134,7 @@ export class AISearchPreset extends Preset {
         description: 'Enable AI response caching',
         type: 'boolean',
         default: true,
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'rpdbApiKey',
@@ -142,7 +142,7 @@ export class AISearchPreset extends Preset {
         description: 'Optionally provide an RPDB API Key to use for posters',
         type: 'password',
         required: false,
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'language',
@@ -151,7 +151,7 @@ export class AISearchPreset extends Preset {
         type: 'select',
         options: this.languages,
         default: 'en-US',
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'model',
@@ -160,7 +160,7 @@ export class AISearchPreset extends Preset {
           'The Gemini model to use for AI Search. See available models at the [documentation](https://ai.google.dev/gemini-api/docs/models/gemini)',
         type: 'string',
         default: 'gemini-2.0-flash-lite',
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'numberOfRecommendations',
@@ -173,7 +173,7 @@ export class AISearchPreset extends Preset {
           min: 1,
           max: 30,
         },
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'socials',

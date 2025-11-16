@@ -53,6 +53,7 @@ const ProwlarrApiIndexerSchema = z.object({
   sortName: z.string(),
   definitionName: z.string(),
   enable: z.boolean(),
+  protocol: z.enum(['torrent', 'usenet']),
   tags: z.array(z.number()),
 });
 
@@ -61,7 +62,7 @@ export type ProwlarrApiIndexer = z.infer<typeof ProwlarrApiIndexerSchema>;
 const ProwlarrApiIndexersListSchema = z.array(ProwlarrApiIndexerSchema);
 
 const ProwlarrApiSearchItemSchema = z.object({
-  guid: z.string(), // can sometimes be the raw magnet url
+  guid: z.string().optional(), // can sometimes be the raw magnet url
   age: z.number(), // in days
   size: z.number(),
   indexerId: z.number(),
@@ -168,7 +169,7 @@ class ProwlarrApi {
           },
           ProwlarrApiSearchSchema
         ),
-      `${this.baseUrl}:search:${query}`,
+      `${this.baseUrl}:${type}:${query}:${indexerIds.join(',')}:${limit}:${offset}`,
       Env.BUILTIN_PROWLARR_SEARCH_CACHE_TTL
     );
   }

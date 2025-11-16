@@ -44,7 +44,7 @@ export class TorznabAddon extends BaseNabAddon<NabAddonConfig, TorznabApi> {
     parsedId: ParsedId,
     metadata: SearchMetadata
   ): Promise<UnprocessedTorrent[]> {
-    const results = await this.performSearch(parsedId, metadata);
+    const { results, meta } = await this.performSearch(parsedId, metadata);
     const seenTorrents = new Set<string>();
 
     const torrents: UnprocessedTorrent[] = [];
@@ -61,6 +61,7 @@ export class TorznabAddon extends BaseNabAddon<NabAddonConfig, TorznabApi> {
       seenTorrents.add(infoHash ?? downloadUrl!);
 
       torrents.push({
+        confirmed: meta.searchType === 'id',
         hash: infoHash,
         downloadUrl,
         sources: result.torznab?.magneturl?.toString()
@@ -103,7 +104,6 @@ export class TorznabAddon extends BaseNabAddon<NabAddonConfig, TorznabApi> {
         )
           ?.toString()
           ?.match(/(?:urn(?::|%3A)btih(?::|%3A))([a-f0-9]{40})/i)?.[1]
-          ?.toLowerCase()
     );
   }
 }

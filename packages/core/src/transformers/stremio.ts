@@ -19,7 +19,7 @@ import {
 } from '../db/index.js';
 import { createFormatter } from '../formatters/index.js';
 import { AIOStreamsError, AIOStreamsResponse } from '../main.js';
-import { createLogger, getTimeTakenSincePoint } from '../utils/index.js';
+import { Cache, createLogger, getTimeTakenSincePoint } from '../utils/index.js';
 
 type ErrorOptions = {
   errorTitle?: string;
@@ -51,7 +51,8 @@ export class StremioTransformer {
       ) => Promise<{ name: string; description: string }>;
     },
     index: number,
-    provideStreamData: boolean
+    provideStreamData: boolean,
+    options?: { disableAutoplay?: boolean }
   ): Promise<AIOStream> {
     const { name, description } = stream.addon.formatPassthrough
       ? {
@@ -161,7 +162,7 @@ export class StremioTransformer {
       behaviorHints: {
         countryWhitelist: stream.countryWhitelist,
         notWebReady: stream.notWebReady,
-        bingeGroup,
+        bingeGroup: options?.disableAutoplay ? undefined : bingeGroup,
         proxyHeaders:
           stream.requestHeaders || stream.responseHeaders
             ? {
@@ -203,14 +204,14 @@ export class StremioTransformer {
       streams: ParsedStream[];
       statistics: { title: string; description: string }[];
     }>,
-    options?: { provideStreamData: boolean }
+    options?: { provideStreamData?: boolean; disableAutoplay?: boolean }
   ): Promise<AIOStreamResponse> {
     const formatter = createFormatter(this.userData);
     const {
       data: { streams, statistics },
       errors,
     } = response;
-    const { provideStreamData } = options ?? {};
+    const { provideStreamData, disableAutoplay } = options ?? {};
 
     let transformedStreams: AIOStream[] = [];
 
@@ -222,7 +223,8 @@ export class StremioTransformer {
           stream,
           formatter,
           index,
-          provideStreamData ?? false
+          provideStreamData ?? false,
+          { disableAutoplay: disableAutoplay ?? false }
         )
       )
     );
@@ -309,10 +311,10 @@ export class StremioTransformer {
 
   async transformMeta(
     response: AIOStreamsResponse<ParsedMeta | null>,
-    options?: { provideStreamData: boolean }
+    options?: { provideStreamData?: boolean; disableAutoplay?: boolean }
   ): Promise<MetaResponse | null> {
     const { data: meta, errors } = response;
-    const { provideStreamData } = options ?? {};
+    const { provideStreamData, disableAutoplay } = options ?? {};
 
     if (!meta && errors.length === 0) {
       return null;
@@ -349,7 +351,8 @@ export class StremioTransformer {
                 stream,
                 formatter!,
                 index,
-                provideStreamData ?? false
+                provideStreamData ?? false,
+                { disableAutoplay: disableAutoplay ?? false }
               )
             )
           );

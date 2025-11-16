@@ -73,7 +73,7 @@ export class DMMCastPreset extends Preset {
       },
       {
         id: 'timeout',
-        name: 'Timeout',
+        name: 'Timeout (ms)',
         description: 'The timeout for this addon',
         type: 'number',
         default: Env.DEFAULT_DMM_CAST_TIMEOUT || Env.DEFAULT_TIMEOUT,
@@ -95,7 +95,7 @@ export class DMMCastPreset extends Preset {
           label: resource,
           value: resource,
         })),
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'socials',

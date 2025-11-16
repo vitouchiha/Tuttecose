@@ -143,18 +143,19 @@ export class TorrentsDbPreset extends Preset {
         Env.DEFAULT_TORRENTS_DB_TIMEOUT
       ),
       {
-        id: 'providers',
-        name: 'Providers',
+        id: 'mediaTypes',
+        name: 'Media Types',
         description:
-          'Optionally override the providers that are used. If not specified, then the default providers will be used.',
+          'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
         type: 'multi-select',
         required: false,
-        options: TorrentsDbPreset.defaultProviders,
-        default: TorrentsDbPreset.defaultProviders.map(
-          (provider) => provider.value
-        ),
-        emptyIsUndefined: true,
-        showInNoobMode: false,
+        showInSimpleMode: false,
+        options: [
+          { label: 'Movie', value: 'movie' },
+          { label: 'Series', value: 'series' },
+          { label: 'Anime', value: 'anime' },
+        ],
+        default: [],
       },
       {
         id: 'services',
@@ -169,7 +170,21 @@ export class TorrentsDbPreset extends Preset {
         })),
         default: undefined,
         emptyIsUndefined: true,
-        showInNoobMode: false,
+        showInSimpleMode: false,
+      },
+      {
+        id: 'providers',
+        name: 'Providers',
+        description:
+          'Optionally override the providers that are used. If not specified, then the default providers will be used.',
+        type: 'multi-select',
+        required: false,
+        options: TorrentsDbPreset.defaultProviders,
+        default: TorrentsDbPreset.defaultProviders.map(
+          (provider) => provider.value
+        ),
+        emptyIsUndefined: true,
+        showInSimpleMode: false,
       },
       {
         id: 'includeP2P',
@@ -179,7 +194,7 @@ export class TorrentsDbPreset extends Preset {
         type: 'boolean',
         default: false,
         required: false,
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
       {
         id: 'useMultipleInstances',
@@ -189,7 +204,7 @@ export class TorrentsDbPreset extends Preset {
         type: 'boolean',
         default: false,
         required: true,
-        showInNoobMode: false,
+        showInSimpleMode: false,
       },
     ];
 
@@ -269,6 +284,7 @@ export class TorrentsDbPreset extends Preset {
             : 'p2p',
       manifestUrl: this.generateManifestUrl(userData, services, options),
       enabled: true,
+      mediaTypes: options.mediaTypes || [],
       resources: options.resources || this.METADATA.SUPPORTED_RESOURCES,
       timeout: options.timeout || this.METADATA.TIMEOUT,
       preset: {

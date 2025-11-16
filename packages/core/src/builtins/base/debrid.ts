@@ -1,11 +1,20 @@
-import { Manifest, Meta, Stream } from '../../db/schemas.js';
+import {
+  CacheAndPlaySchema,
+  Manifest,
+  Meta,
+  Stream,
+} from '../../db/schemas.js';
 import { z, ZodError } from 'zod';
 import { IdParser, IdType, ParsedId } from '../../utils/id-parser.js';
 import {
   AnimeDatabase,
+  BuiltinServiceId,
   constants,
+  encryptString,
   Env,
   formatZodError,
+  fromUrlSafeBase64,
+  getSimpleTextHash,
   getTimeTakenSincePoint,
   SERVICE_DETAILS,
 } from '../../utils/index.js';
@@ -21,6 +30,9 @@ import {
   ServiceAuth,
   DebridError,
   generatePlaybackUrl,
+  TitleMetadata as DebridTitleMetadata,
+  metadataStore,
+  FileInfo,
 } from '../../debrid/index.js';
 import { processTorrents, processNZBs } from '../utils/debrid.js';
 import { calculateAbsoluteEpisode } from '../utils/general.js';
@@ -29,6 +41,10 @@ import { MetadataService } from '../../metadata/service.js';
 import { Logger } from 'winston';
 import pLimit from 'p-limit';
 import { cleanTitle } from '../../parser/utils.js';
+import { NzbDavConfig, NzbDAVService } from '../../debrid/nzbdav.js';
+import { AltmountConfig, AltmountService } from '../../debrid/altmount.js';
+import { createProxy } from '../../proxy/index.js';
+import { formatHours } from '../../formatters/utils.js';
 
 export interface SearchMetadata extends TitleMetadata {
   primaryTitle?: string;
@@ -44,6 +60,7 @@ export const BaseDebridConfigSchema = z.object({
   tmdbApiKey: z.string().optional(),
   tmdbReadAccessToken: z.string().optional(),
   tvdbApiKey: z.string().optional(),
+  cacheAndPlay: CacheAndPlaySchema.optional(),
 });
 export type BaseDebridConfig = z.infer<typeof BaseDebridConfigSchema>;
 
@@ -101,6 +118,7 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
 
   public async getStreams(type: string, id: string): Promise<Stream[]> {
     const parsedId = IdParser.parse(id, type);
+    const errorStreams: Stream[] = [];
     if (
       !parsedId ||
       !BaseDebridAddon.supportedIdTypes.includes(parsedId.type)
@@ -142,9 +160,8 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
     const nzbResults =
       searchPromises[1].status === 'fulfilled' ? searchPromises[1].value : [];
 
-    const searchErrors: Stream[] = [];
     if (searchPromises[0].status === 'rejected') {
-      searchErrors.push(
+      errorStreams.push(
         this._createErrorStream({
           title: `${this.name}`,
           description: searchPromises[0].reason.message,
@@ -152,7 +169,7 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
       );
     }
     if (searchPromises[1].status === 'rejected') {
-      searchErrors.push(
+      errorStreams.push(
         this._createErrorStream({
           title: `${this.name}`,
           description: searchPromises[1].reason.message,
@@ -195,33 +212,265 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
       torrentResults = [...torrentResults, ...enrichedResults];
     }
 
+    const torrentServices = this.userData.services.filter(
+      (s) => !['nzbdav', 'altmount'].includes(s.id) // usenet only services excluded
+    );
+    const nzbServices = this.userData.services.filter(
+      (s) => ['nzbdav', 'altmount', 'torbox'].includes(s.id) // only keep services that support usenet
+    );
+
+    if (torrentServices.length === 0 && torrentResults.length > 0) {
+      errorStreams.push(
+        this._createErrorStream({
+          title: `${this.name}`,
+          description: `No torrent debrid services configured to process torrent results.`,
+        })
+      );
+    }
+    if (nzbServices.length === 0 && nzbResults.length > 0) {
+      errorStreams.push(
+        this._createErrorStream({
+          title: `${this.name}`,
+          description: `No usenet services configured to process NZB results.`,
+        })
+      );
+    }
+
     const [processedTorrents, processedNzbs] = await Promise.all([
       processTorrents(
         torrentResults as Torrent[],
-        this.userData.services,
+        torrentServices,
         id,
         searchMetadata,
         this.clientIp
       ),
-      processNZBs(
-        nzbResults,
-        this.userData.services,
-        id,
-        searchMetadata,
-        this.clientIp
-      ),
+      processNZBs(nzbResults, nzbServices, id, searchMetadata, this.clientIp),
     ]);
 
-    const resultStreams = await Promise.all(
-      [...processedTorrents.results, ...processedNzbs.results].map((result) =>
-        this._createStream(result, this.userData, searchMetadata)
-      )
+    const encryptedStoreAuths = this.userData.services.reduce(
+      (acc, service) => {
+        const auth = {
+          id: service.id,
+          credential: service.credential,
+        };
+        acc[service.id] = encryptString(JSON.stringify(auth)).data ?? '';
+        return acc;
+      },
+      {} as Record<BuiltinServiceId, string>
+    );
+    const debridTitleMetadata: DebridTitleMetadata = {
+      titles: searchMetadata.titles,
+      year: searchMetadata.year,
+      season: searchMetadata.season,
+      episode: searchMetadata.episode,
+      absoluteEpisode: searchMetadata.absoluteEpisode,
+    };
+    const metadataId = getSimpleTextHash(JSON.stringify(debridTitleMetadata));
+    await metadataStore().set(
+      metadataId,
+      debridTitleMetadata,
+      Env.BUILTIN_PLAYBACK_LINK_VALIDITY
     );
 
-    const processingErrors = [
-      ...processedTorrents.errors,
-      ...processedNzbs.errors,
-    ].map((error) => {
+    const results = [...processedTorrents.results, ...processedNzbs.results];
+
+    // Setup auth for both NzbDAV and Altmount
+    let nzbdavAuth: z.infer<typeof NzbDavConfig> | undefined;
+    let altmountAuth: z.infer<typeof AltmountConfig> | undefined;
+
+    const encodedNzbdavAuth = this.userData.services.find(
+      (s) => s.id === 'nzbdav'
+    )?.credential;
+    const encodedAltmountAuth = this.userData.services.find(
+      (s) => s.id === 'altmount'
+    )?.credential;
+
+    if (encodedNzbdavAuth) {
+      const { success, data } = NzbDavConfig.safeParse(
+        JSON.parse(fromUrlSafeBase64(encodedNzbdavAuth))
+      );
+      if (success) {
+        nzbdavAuth = data;
+      }
+    }
+
+    if (encodedAltmountAuth) {
+      const { success, data } = AltmountConfig.safeParse(
+        JSON.parse(fromUrlSafeBase64(encodedAltmountAuth))
+      );
+      if (success) {
+        altmountAuth = data;
+      }
+    }
+
+    // Collect indices for proxying
+    const nzbdavProxyIndices: number[] = [];
+    const altmountProxyIndices: number[] = [];
+
+    if (nzbdavAuth && nzbdavAuth.aiostreamsAuth) {
+      nzbdavProxyIndices.push(
+        ...results
+          .map((result, index) => ({ result, index }))
+          .filter(({ result }) => result.service?.id === 'nzbdav')
+          .map(({ index }) => index)
+      );
+    }
+
+    if (altmountAuth && altmountAuth.aiostreamsAuth) {
+      altmountProxyIndices.push(
+        ...results
+          .map((result, index) => ({ result, index }))
+          .filter(({ result }) => result.service?.id === 'altmount')
+          .map(({ index }) => index)
+      );
+    }
+
+    let resultStreams = await Promise.all(
+      results.map((result) => {
+        const stream = this._createStream(
+          result,
+          encryptedStoreAuths,
+          metadataId
+        );
+        if (
+          result.service?.id === 'nzbdav' &&
+          nzbdavAuth &&
+          nzbdavAuth.webdavUser &&
+          nzbdavAuth.webdavPassword
+        ) {
+          stream.behaviorHints = {
+            ...stream.behaviorHints,
+            notWebReady: true,
+            proxyHeaders: {
+              request: {
+                Authorization: `Basic ${Buffer.from(
+                  `${nzbdavAuth.webdavUser}:${nzbdavAuth.webdavPassword}`
+                ).toString('base64')}`,
+              },
+            },
+          };
+        } else if (result.service?.id === 'altmount' && altmountAuth) {
+          stream.behaviorHints = {
+            ...stream.behaviorHints,
+            notWebReady: true,
+            proxyHeaders: {
+              request: {
+                Authorization: `Basic ${Buffer.from(
+                  `${altmountAuth.webdavUser}:${altmountAuth.webdavPassword}`
+                ).toString('base64')}`,
+              },
+            },
+          };
+        }
+        return stream;
+      })
+    );
+    // Proxy NzbDAV streams
+    if (nzbdavProxyIndices.length > 0 && nzbdavAuth?.aiostreamsAuth) {
+      const proxy = createProxy({
+        id: 'builtin',
+        enabled: true,
+        credentials: nzbdavAuth.aiostreamsAuth,
+      });
+
+      const proxiedStreams = await proxy.generateUrls(
+        nzbdavProxyIndices
+          .map((i) => resultStreams[i])
+          .map((stream) => ({
+            url: stream.url!,
+            filename: stream.behaviorHints?.filename ?? undefined,
+            headers:
+              nzbdavAuth.webdavUser && nzbdavAuth.webdavPassword
+                ? {
+                    request: {
+                      Authorization: `Basic ${Buffer.from(
+                        `${nzbdavAuth.webdavUser}:${nzbdavAuth.webdavPassword}`
+                      ).toString('base64')}`,
+                    },
+                  }
+                : undefined,
+          }))
+      );
+
+      if (proxiedStreams) {
+        for (let i = 0; i < nzbdavProxyIndices.length; i++) {
+          const index = nzbdavProxyIndices[i];
+          const proxiedUrl = proxiedStreams[i];
+          if (proxiedUrl) {
+            resultStreams[index].url = proxiedUrl;
+            resultStreams[index].behaviorHints = {
+              ...resultStreams[index].behaviorHints,
+              notWebReady: undefined,
+              proxyHeaders: undefined,
+            };
+          }
+        }
+      } else {
+        errorStreams.push(
+          this._createErrorStream({
+            title: `${this.name}`,
+            description: `Failed to proxy NzbDAV streams, ensure your proxy auth is correct.`,
+          })
+        );
+        // remove all nzbdav streams
+        resultStreams = resultStreams.filter(
+          (_, i) => !nzbdavProxyIndices.includes(i)
+        );
+      }
+    }
+
+    // Proxy Altmount streams
+    if (altmountProxyIndices.length > 0 && altmountAuth?.aiostreamsAuth) {
+      const proxy = createProxy({
+        id: 'builtin',
+        enabled: true,
+        credentials: altmountAuth.aiostreamsAuth,
+      });
+
+      const proxiedStreams = await proxy.generateUrls(
+        altmountProxyIndices
+          .map((i) => resultStreams[i])
+          .map((stream) => ({
+            url: stream.url!,
+            filename: stream.behaviorHints?.filename ?? undefined,
+            headers: {
+              request: {
+                Authorization: `Basic ${Buffer.from(
+                  `${altmountAuth.webdavUser}:${altmountAuth.webdavPassword}`
+                ).toString('base64')}`,
+              },
+            },
+          }))
+      );
+
+      if (proxiedStreams) {
+        for (let i = 0; i < altmountProxyIndices.length; i++) {
+          const index = altmountProxyIndices[i];
+          const proxiedUrl = proxiedStreams[i];
+          if (proxiedUrl) {
+            resultStreams[index].url = proxiedUrl;
+            resultStreams[index].behaviorHints = {
+              ...resultStreams[index].behaviorHints,
+              notWebReady: undefined,
+              proxyHeaders: undefined,
+            };
+          }
+        }
+      } else {
+        errorStreams.push(
+          this._createErrorStream({
+            title: `${this.name}`,
+            description: `Failed to proxy Altmount streams, ensure your proxy auth is correct.`,
+          })
+        );
+        // remove all altmount streams
+        resultStreams = resultStreams.filter(
+          (_, i) => !altmountProxyIndices.includes(i)
+        );
+      }
+    }
+
+    [...processedTorrents.errors, ...processedNzbs.errors].forEach((error) => {
       let errMsg = error.error.message;
       if (error instanceof DebridError) {
         switch (error.code) {
@@ -229,13 +478,15 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
             errMsg = 'Invalid Credentials';
         }
       }
-      return this._createErrorStream({
-        title: `${this.name}`,
-        description: `[${constants.SERVICE_DETAILS[error.serviceId].shortName}] ${errMsg}`,
-      });
+      errorStreams.push(
+        this._createErrorStream({
+          title: `${this.name}`,
+          description: `[${constants.SERVICE_DETAILS[error.serviceId].shortName}] ${errMsg}`,
+        })
+      );
     });
 
-    return [...resultStreams, ...searchErrors, ...processingErrors];
+    return [...resultStreams, ...errorStreams];
   }
 
   protected buildQueries(
@@ -414,37 +665,33 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
 
   protected _createStream(
     torrentOrNzb: TorrentWithSelectedFile | NZBWithSelectedFile,
-    userData: T,
-    titleMetadata?: TitleMetadata
+    encryptedStoreAuths: Record<BuiltinServiceId, string>,
+    metadataId: string
   ): Stream {
     // Handle debrid streaming
-    const storeAuth: ServiceAuth | undefined = torrentOrNzb.service
-      ? {
-          id: torrentOrNzb.service!.id,
-          credential:
-            userData.services.find(
-              (service) => service.id === torrentOrNzb.service!.id
-            )?.credential ?? '',
-        }
+    const encryptedStoreAuth = torrentOrNzb.service
+      ? encryptedStoreAuths?.[torrentOrNzb.service?.id]
       : undefined;
 
-    const playbackInfo: PlaybackInfo | undefined = torrentOrNzb.service
+    const fileInfo: FileInfo | undefined = torrentOrNzb.service
       ? torrentOrNzb.type === 'torrent'
         ? {
             type: 'torrent',
             hash: torrentOrNzb.hash,
             sources: torrentOrNzb.sources,
-            title: torrentOrNzb.title,
-            file: torrentOrNzb.file,
-            metadata: titleMetadata,
+            index: torrentOrNzb.file.index,
+            cacheAndPlay:
+              this.userData.cacheAndPlay?.enabled &&
+              this.userData.cacheAndPlay?.streamTypes?.includes('torrent'),
           }
         : {
             type: 'usenet',
             nzb: torrentOrNzb.nzb,
-            title: torrentOrNzb.title,
             hash: torrentOrNzb.hash,
-            file: torrentOrNzb.file,
-            metadata: titleMetadata,
+            index: torrentOrNzb.file.index,
+            cacheAndPlay:
+              this.userData.cacheAndPlay?.enabled &&
+              this.userData.cacheAndPlay?.streamTypes?.includes('usenet'),
           }
       : undefined;
 
@@ -463,22 +710,23 @@ export abstract class BaseDebridAddon<T extends BaseDebridConfig> {
     const description = `${torrentOrNzb.title}\n${torrentOrNzb.file.name}\n${
       torrentOrNzb.indexer ? `🔍 ${torrentOrNzb.indexer}` : ''
     } ${'seeders' in torrentOrNzb && torrentOrNzb.seeders ? `👤 ${torrentOrNzb.seeders}` : ''} ${
-      torrentOrNzb.age && torrentOrNzb.age !== '0d'
-        ? `🕒 ${torrentOrNzb.age}`
-        : ''
+      torrentOrNzb.age ? `🕒 ${formatHours(torrentOrNzb.age)}` : ''
     }`;
 
     return {
       url: torrentOrNzb.service
         ? generatePlaybackUrl(
-            storeAuth!,
-            playbackInfo!,
-            torrentOrNzb.file.name || torrentOrNzb.title || 'unknown'
+            encryptedStoreAuth!,
+            metadataId!,
+            fileInfo!,
+            torrentOrNzb.title,
+            torrentOrNzb.file.name
           )
         : undefined,
       name,
       description,
       type: torrentOrNzb.type,
+      age: torrentOrNzb.age,
       infoHash: torrentOrNzb.hash,
       fileIdx: torrentOrNzb.file.index,
       behaviorHints: {

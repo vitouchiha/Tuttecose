@@ -6,6 +6,11 @@ import { Env } from '../utils/index.js';
 export class NZBHydraPreset extends NewznabPreset {
   static override get METADATA() {
     const supportedResources = [constants.STREAM_RESOURCE];
+    const supportedServices = [
+      constants.TORBOX_SERVICE,
+      constants.NZBDAV_SERVICE,
+      constants.ALTMOUNT_SERVICE,
+    ] as ServiceId[];
     const options: Option[] = [
       {
         id: 'name',
@@ -17,7 +22,7 @@ export class NZBHydraPreset extends NewznabPreset {
       },
       {
         id: 'timeout',
-        name: 'Timeout',
+        name: 'Timeout (ms)',
         description: 'The timeout for this addon',
         type: 'number',
         default: Env.BUILTIN_DEFAULT_NZBHYDRA_TIMEOUT,
@@ -26,6 +31,36 @@ export class NZBHydraPreset extends NewznabPreset {
           max: Env.MAX_TIMEOUT,
           forceInUi: false,
         },
+      },
+      {
+        id: 'services',
+        name: 'Services',
+        description:
+          'Optionally override the services that are used. If not specified, then the services that are enabled and supported will be used.',
+        type: 'multi-select',
+        required: false,
+        showInSimpleMode: false,
+        options: supportedServices.map((service) => ({
+          value: service,
+          label: constants.SERVICE_DETAILS[service].name,
+        })),
+        default: undefined,
+        emptyIsUndefined: true,
+      },
+      {
+        id: 'mediaTypes',
+        name: 'Media Types',
+        description:
+          'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
+        type: 'multi-select',
+        required: false,
+        showInSimpleMode: false,
+        options: [
+          { label: 'Movie', value: 'movie' },
+          { label: 'Series', value: 'series' },
+          { label: 'Anime', value: 'anime' },
+        ],
+        default: [],
       },
 
       ...(Env.BUILTIN_NZBHYDRA_URL && Env.BUILTIN_NZBHYDRA_API_KEY
@@ -56,12 +91,27 @@ export class NZBHydraPreset extends NewznabPreset {
         required: !Env.BUILTIN_NZBHYDRA_URL || !Env.BUILTIN_NZBHYDRA_API_KEY,
       },
       {
-        id: 'forceQuerySearch',
-        name: 'Force Query Search',
-        description: 'Force the addon to use the query search parameter',
-        type: 'boolean',
+        id: 'searchMode',
+        name: 'Search Mode',
+        description:
+          'The search mode to use when querying the Torznab endpoint. **Note**: `Both` will result in two addons being created, one for each search mode.',
+        type: 'select',
         required: false,
-        default: true,
+        default: 'query',
+        options: [
+          { label: 'Auto', value: 'auto' },
+          { label: 'Forced Query', value: 'query' },
+          { label: 'Both', value: 'both' },
+        ],
+      },
+      {
+        id: 'useMultipleInstances',
+        name: 'Use Multiple Instances',
+        description:
+          'Newznab supports multiple services in one instance of the addon - which is used by default. If this is enabled, then the addon will be created for each service.',
+        type: 'boolean',
+        default: false,
+        showInSimpleMode: false,
       },
     ];
 
@@ -72,7 +122,7 @@ export class NZBHydraPreset extends NewznabPreset {
       URL: `${Env.INTERNAL_URL}/builtins/newznab`,
       TIMEOUT: Env.BUILTIN_DEFAULT_NZBHYDRA_TIMEOUT || Env.DEFAULT_TIMEOUT,
       USER_AGENT: Env.DEFAULT_USER_AGENT,
-      SUPPORTED_SERVICES: [constants.TORBOX_SERVICE],
+      SUPPORTED_SERVICES: supportedServices,
       DESCRIPTION: 'An addon to get usenet results from a NZBHydra instance.',
       OPTIONS: options,
       SUPPORTED_STREAM_TYPES: [constants.USENET_STREAM_TYPE],

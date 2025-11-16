@@ -104,6 +104,10 @@ export class OpenSubtitlesV3PlusPreset extends Preset {
       { label: 'Spanish (EU)', value: 'sp' },
       { label: 'Santali', value: 'sx' },
       { label: 'Toki Pona', value: 'tp' },
+      { label: 'Chinese (simplified)', value: 'zh-cn' },
+      { label: 'Portuguese', value: 'pt-pt' },
+      { label: 'Portuguese (BR)', value: 'pt-br' },
+      { label: 'Chinese (traditional)', value: 'zh-tw' },
     ];
 
     const options: Option[] = [

@@ -264,8 +264,13 @@ export class Cache<K, V> {
    * @param value The value to set
    * @param ttl The TTL in seconds
    */
-  async set(key: K, value: V, ttl: number): Promise<void> {
-    return this.backend.set(key, value, ttl);
+  async set(
+    key: K,
+    value: V,
+    ttl: number,
+    forceWrite?: boolean
+  ): Promise<void> {
+    return this.backend.set(key, value, ttl, forceWrite);
   }
 
   /**
@@ -275,6 +280,10 @@ export class Cache<K, V> {
    */
   async update(key: K, value: V): Promise<void> {
     return this.backend.update(key, value);
+  }
+
+  async delete(key: K): Promise<boolean> {
+    return this.backend.delete(key);
   }
 
   async clear(): Promise<void> {

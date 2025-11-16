@@ -50,6 +50,21 @@ export class EasynewsPlusPlusPreset extends EasynewsPreset {
           Env.DEFAULT_EASYNEWS_PLUS_PLUS_TIMEOUT || Env.DEFAULT_TIMEOUT
         ),
         {
+          id: 'mediaTypes',
+          name: 'Media Types',
+          description:
+            'Limits this addon to the selected media types for streams. For example, selecting "Movie" means this addon will only be used for movie streams (if the addon supports them). Leave empty to allow all.',
+          type: 'multi-select',
+          required: false,
+          options: [
+            { label: 'Movie', value: 'movie' },
+            { label: 'Series', value: 'series' },
+            { label: 'Anime', value: 'anime' },
+          ],
+          default: [],
+          showInSimpleMode: false,
+        },
+        {
           id: 'strictTitleMatching',
           name: 'Strict Title Matching',
           description:

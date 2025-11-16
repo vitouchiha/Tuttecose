@@ -13,9 +13,10 @@ import {
   CoffeeIcon,
   MessageCircleIcon,
   PencilIcon,
+  PlusIcon,
 } from 'lucide-react';
-import { FaGithub, FaDiscord } from 'react-icons/fa';
-import { BiDonateHeart } from 'react-icons/bi';
+import { FaGithub, FaDiscord, FaChevronRight } from 'react-icons/fa';
+import { BiDonateHeart, BiLogInCircle, BiLogOutCircle } from 'react-icons/bi';
 import { AiOutlineDiscord } from 'react-icons/ai';
 import { FiGithub } from 'react-icons/fi';
 import Image from 'next/image';
@@ -32,6 +33,12 @@ import { useMode } from '@/context/mode';
 import { DonationModal } from '../shared/donation-modal';
 import { ModeSwitch } from '../ui/mode-switch/mode-switch';
 import { ModeSelectModal } from '../shared/mode-select-modal';
+import { ConfigModal } from '../config-modal';
+import { ConfigTemplatesModal } from '../shared/config-templates-modal';
+import {
+  ConfirmationDialog,
+  useConfirmationDialog,
+} from '../shared/confirmation-dialog';
 import {
   Card,
   CardHeader,
@@ -43,6 +50,60 @@ import {
 import { Select } from '@/components/ui/select';
 import { cn } from '@/components/ui/core/styling';
 import { Textarea } from '../ui/textarea';
+import { FaPlay } from 'react-icons/fa6';
+import { usePathname } from 'next/navigation';
+
+interface QuickLinkProps {
+  href?: string;
+  onClick?: () => void;
+  className?: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}
+
+function QuickLink({
+  href,
+  onClick,
+  icon,
+  children,
+  className,
+}: QuickLinkProps) {
+  className = cn(
+    'group relative flex flex-col justify-between p-4 h-32 rounded-lg bg-gray-800/60 hover:bg-gray-800/60 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg border border-transparent hover:border-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:border-white',
+    className
+  );
+
+  const content = (
+    <>
+      <div className="text-gray-400 group-hover:text-white transition-colors">
+        {icon}
+      </div>
+      <span className="font-semibold text-gray-400 text-sm font-bold group-hover:text-white transition-colors text-left">
+        {children}
+      </span>
+      <FaChevronRight className="absolute bottom-4 right-4 w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
+    </>
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button onClick={onClick} className={className}>
+      {content}
+    </button>
+  );
+}
 
 export function AboutMenu() {
   return (
@@ -57,17 +118,15 @@ export function AboutMenu() {
 function Content() {
   const { status, loading, error } = useStatus();
   const { nextMenu } = useMenu();
-  const { userData, setUserData } = useUserData();
+  const [initialUuid, setInitialUuid] = React.useState<string | null>(null);
+  const { userData, setUserData, uuid, setUuid, password, setPassword } =
+    useUserData();
   const { mode, setMode, isFirstTime } = useMode();
   const modeSelectModal = useDisclosure(isFirstTime);
   const addonName =
     userData.addonName || status?.settings?.addonName || 'AIOStreams';
   const defaultDescription = `
-  AIOStreams consolidates multiple Stremio addons and debrid
-  services into a single, easily configurable addon. It allows
-  highly customisable filtering, sorting, and formatting of results
-  and supports proxying all your streams through MediaFlow Proxy or
-  StremThru for improved compatibility and IP restriction bypassing.
+AIOStreams consolidates multiple Stremio addons and debrid services - including its own suite of exclusive built-in addons - into a single, highly customisable super-addon. 
   `;
   const addonDescription = userData.addonDescription || defaultDescription;
   const version = status?.tag || 'Unknown';
@@ -78,22 +137,53 @@ function Content() {
   const discordUrl = 'https://discord.viren070.me';
   const donationModal = useDisclosure(false);
   const customizeModal = useDisclosure(false);
+  const signInModal = useDisclosure(false);
+  const templatesModal = useDisclosure(false);
+  const setupChoiceModal = useDisclosure(false);
   const customHtml = status?.settings?.customHtml;
+  const pathname = usePathname();
+  const confirmClearConfig = useConfirmationDialog({
+    title: 'Sign Out',
+    description: 'Are you sure you want to sign out?',
+    onConfirm: () => {
+      setUserData(null);
+      setUuid(null);
+      setPassword(null);
+    },
+  });
+
+  React.useEffect(() => {
+    const uuidMatch = pathname.match(
+      /stremio\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/.*\/configure/
+    );
+    if (uuidMatch) {
+      setInitialUuid(uuidMatch[1]);
+    }
+  }, [pathname]);
 
   return (
     <>
       <div className="flex flex-col gap-4 w-full">
         {/* Top section: Responsive logo/name/about layout */}
         <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start w-full relative">
-          {/* Donate button - visible only on larger screens */}
+          {/* Login/Logout button - visible only on larger screens */}
           <div className="hidden lg:block absolute top-0 right-0">
             <Button
-              intent="alert-subtle"
+              intent="primary-outline"
               size="md"
-              leftIcon={<HeartIcon />}
-              onClick={donationModal.open}
+              iconClass="text-2xl"
+              leftIcon={
+                uuid && password ? <BiLogOutCircle /> : <BiLogInCircle />
+              }
+              onClick={() => {
+                if (uuid && password) {
+                  confirmClearConfig.open();
+                } else {
+                  signInModal.open();
+                }
+              }}
             >
-              Support Me
+              {uuid && password ? 'Log Out' : 'Log In'}
             </Button>
           </div>
 
@@ -142,6 +232,7 @@ function Content() {
             </div>
           </div>
         </div>
+
         {/* Custom HTML section, styled like a card, only if present */}
         {customHtml && (
           <SettingsCard>
@@ -152,148 +243,152 @@ function Content() {
           </SettingsCard>
         )}
 
-        {/* Main content: Getting Started */}
-        <SettingsCard
-          title="Get Started"
-          description="Everything you need to know about AIOStreams"
-          className="mt-4"
-        >
-          <div className="space-y-6">
-            {/* Welcome section */}
-            <div className="text-base text-muted-foreground">
-              <b>Welcome to AIOStreams!</b> <br />
-              <br />
-              <span>
-                Click the Configure button below to start customizing AIOStreams
-                to your preferences. You'll be guided through each section where
-                you can set up your configuration. Once complete, you'll create
-                a password-protected configuration that you can install in
-                Stremio or other compatible apps.
+        {/* Setup Mode Row */}
+        <div className="flex flex-col items-center md:items-start gap-4 w-full md:pl-6">
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full justify-start">
+            <div className="flex flex-col items-start md:items-start">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 self-start">
+                Setup Mode
               </span>
-              <br />
-              <br />
-              <span>
-                Need to make changes later? Simply click configure within your
-                app and enter your password. You can update your settings at any
-                time, and in most cases - you won't need to reinstall
-                AIOStreams!
-              </span>
+              <ModeSwitch
+                value={mode}
+                onChange={setMode}
+                className="w-[280px] h-12 text-base"
+              />
             </div>
-
-            <div className="flex items-center justify-center mb-6">
-              <div className="flex flex-col gap-4 items-center">
-                <Button
-                  intent="white"
-                  size="lg"
-                  rounded
-                  onClick={() => {
-                    nextMenu();
-                  }}
-                >
-                  Configure
-                </Button>
-                <ModeSwitch
-                  value={mode}
-                  onChange={setMode}
-                  size="md"
-                  className="w-[280px]"
-                />
-              </div>
+            <div className="text-gray-400 md:self-end md:pb-3">
+              <FaChevronRight className="hidden md:block text-2xl" />
+              <FaChevronRight className="md:hidden rotate-90 text-2xl" />
             </div>
-
-            <div className="relative">
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gray-700/50 to-transparent" />
-            </div>
-
-            {/* Quick links grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
-              <a
-                href={configGuideUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex flex-col gap-2 p-4 rounded-lg bg-gray-900/40 hover:bg-gray-900/60 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
+            <div className="md:self-end">
+              <Button
+                intent="white"
+                rounded
+                leftIcon={<FaPlay />}
+                className="h-12 px-6 text-lg font-semibold"
+                onClick={setupChoiceModal.open}
               >
-                <div className="flex items-center gap-2 text-[--brand] group-hover:underline">
-                  <BookOpenIcon className="w-5 h-5" />
-                  <span className="font-semibold">Configuration Guide</span>
-                </div>
-                <p className="text-sm text-muted-foreground group-hover:text-gray-300 transition-colors">
-                  Learn how to configure AIOStreams to get the most out of your
-                  streaming experience
-                </p>
-              </a>
-
-              <a
-                href="https://github.com/Viren070/AIOStreams/wiki"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex flex-col gap-2 p-4 rounded-lg bg-gray-900/40 hover:bg-gray-900/60 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-              >
-                <div className="flex items-center gap-2 text-[--brand] group-hover:underline">
-                  <BookOpenIcon className="w-5 h-5" />
-                  <span className="font-semibold">Wiki</span>
-                </div>
-                <p className="text-sm text-muted-foreground group-hover:text-gray-300 transition-colors">
-                  Browse our comprehensive documentation for advanced features
-                  like the Custom Formatter and Group conditions.
-                </p>
-              </a>
-
-              <a
-                href={stremioGuideUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex flex-col gap-2 p-4 rounded-lg bg-gray-900/40 hover:bg-gray-900/60 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
-              >
-                <div className="flex items-center gap-2 text-[--brand] group-hover:underline">
-                  <InfoIcon className="w-5 h-5" />
-                  <span className="font-semibold">Stremio Guide</span>
-                </div>
-                <p className="text-sm text-muted-foreground group-hover:text-gray-300 transition-colors">
-                  New to Stremio and its addons? Go through my Stremio guide to
-                  get started!
-                </p>
-              </a>
+                {uuid && password ? 'CONTINUE SETUP' : 'START SETUP'}
+              </Button>
             </div>
           </div>
-        </SettingsCard>
 
-        {/* What's New section in its own row */}
-        <div className="mt-4">
-          <ChangelogBox version={version} />
+          {/* Template Wizard Link */}
+          <div className="text-center md:text-left text-sm text-gray-400 max-w-2xl">
+            New to AIOStreams? Try our{' '}
+            <button
+              onClick={templatesModal.open}
+              className="text-[--brand] hover:text-[--brand]/80 hover:underline font-medium"
+            >
+              Template Wizard
+            </button>{' '}
+            for a guided, step-by-step setup experience with pre-configured
+            settings.
+          </div>
+        </div>
+
+        {/* Main content: Get Started and What's New sections */}
+        <div className="flex flex-col lg:flex-row gap-8 mt-4">
+          {/* Get Started section */}
+          <div className="flex-1">
+            <div className="p-6 h-full flex flex-col">
+              <div className="mb-4">
+                <h3 className="text-2xl font-semibold text-white mb-1">
+                  Welcome to AIOStreams!
+                </h3>
+              </div>
+
+              <div className="space-y-6 flex-1">
+                {/* Welcome section */}
+                <div className="text-base text-muted-foreground">
+                  <span>
+                    Click the Start Setup button above to start customising
+                    AIOStreams to your preferences. You'll be guided through
+                    each section where you can set up your configuration. Once
+                    complete, you'll create a password-protected configuration
+                    that you can install in Stremio or other compatible apps.
+                  </span>
+                  <br />
+                  <br />
+                  <span>
+                    Need to make changes later? Simply click configure within
+                    your app and enter your password. You can update your
+                    settings at any time, and in most cases - you won't need to
+                    reinstall AIOStreams!
+                  </span>
+                  <br />
+                  <br />
+                  <span>
+                    Got an existing configuration already? Click the login
+                    button in the top right corner to access it.
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gray-700/50 to-transparent" />
+                </div>
+
+                {/* Quick links grid */}
+                <div className="pt-6">
+                  <h4 className="text-xl font-semibold text-white mb-4">
+                    Resources & Support
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <QuickLink
+                      href={configGuideUrl}
+                      icon={<BookOpenIcon className="w-8 h-8" />}
+                    >
+                      Configuration Guide
+                    </QuickLink>
+                    <QuickLink
+                      href="https://github.com/Viren070/AIOStreams/wiki"
+                      icon={<BookOpenIcon className="w-8 h-8" />}
+                    >
+                      Wiki
+                    </QuickLink>
+                    <QuickLink
+                      href={stremioGuideUrl}
+                      icon={<InfoIcon className="w-8 h-8" />}
+                    >
+                      Stremio Guide
+                    </QuickLink>
+                    <QuickLink
+                      href={discordUrl}
+                      icon={<AiOutlineDiscord className="w-8 h-8" />}
+                    >
+                      Discord
+                    </QuickLink>
+                    <QuickLink
+                      href={githubUrl}
+                      icon={<FiGithub className="w-8 h-8" />}
+                    >
+                      GitHub
+                    </QuickLink>
+                    <QuickLink
+                      onClick={donationModal.open}
+                      icon={<HeartIcon className="w-8 h-8" />}
+                      className="bg-gradient-to-br from-red-500/20 to-pink-500/20 hover:from-red-500/30 hover:to-pink-500/30 border-red-400/30 hover:border-red-400/50"
+                    >
+                      Donate
+                    </QuickLink>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* What's New section */}
+          <div className="flex-[1.5]">
+            <ChangelogBox version={version} />
+          </div>
         </div>
 
         {/* Social & donation row */}
         <div className="flex flex-col items-center mt-4">
-          <div className="flex gap-6 flex-wrap items-center justify-center">
-            <a
-              href={discordUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Join Discord"
-              className="text-gray-400 hover:text-[--brand] transition-colors"
-            >
-              <AiOutlineDiscord className="w-7 h-7" />
-            </a>
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="GitHub"
-              className="text-gray-400 hover:text-[--brand] transition-colors"
-            >
-              <FiGithub className="w-7 h-7" />
-            </a>
-            <a
-              onClick={donationModal.open}
-              title="Support me"
-              className="text-gray-400 hover:text-[--brand] cursor-pointer transition-colors"
-            >
-              <CoffeeIcon className="w-7 h-7" />
-            </a>
-          </div>
           <div className="flex flex-col items-center gap-0.5 mt-4 text-xs text-gray-500">
-            <span>Developed by Viren070.</span>
+            <span>
+              © {new Date().getFullYear()} AIOStreams. Developed by Viren070.
+            </span>
             <span>
               This beautiful UI would not be possible without{' '}
               <a
@@ -322,6 +417,48 @@ function Content() {
       <ModeSelectModal
         open={modeSelectModal.isOpen}
         onOpenChange={modeSelectModal.toggle}
+      />
+      <ConfigModal
+        open={signInModal.isOpen}
+        onSuccess={() => {
+          signInModal.close();
+          toast.success('Signed in successfully');
+        }}
+        onOpenChange={(v) => {
+          if (!v) {
+            signInModal.close();
+          }
+        }}
+        initialUuid={initialUuid || undefined}
+      />
+      <ConfirmationDialog {...confirmClearConfig} />
+      <ConfigTemplatesModal
+        open={templatesModal.isOpen}
+        onOpenChange={templatesModal.toggle}
+      />
+      <SetupChoiceModal
+        open={setupChoiceModal.isOpen}
+        onOpenChange={setupChoiceModal.toggle}
+        onNextMenu={() => {
+          setupChoiceModal.close();
+          nextMenu();
+        }}
+        onUseTemplate={() => {
+          setupChoiceModal.close();
+          templatesModal.open();
+        }}
+        nextMenuText={uuid && password ? 'Continue Setup' : 'Start Fresh'}
+        nextMenuDescription={
+          uuid && password
+            ? 'Continue adjusting your setup'
+            : 'Build your configuration from scratch. Perfect if you want complete control over every setting.'
+        }
+        useTemplateText="Use a Template"
+        useTemplateDescription={
+          uuid && password
+            ? 'Apply a template to your existing setup'
+            : 'Start with a pre-configured template. Great for getting up and running quickly with recommended settings.'
+        }
       />
     </>
   );
@@ -597,23 +734,16 @@ function ChangelogBox({ version }: { version: string }) {
   );
 
   return (
-    <SettingsCard
-      title="What's New"
-      description={
-        loading
-          ? 'Loading changelogs...'
-          : `View the latest changes for ${currentChannel} releases`
-      }
-      className="h-full flex flex-col"
-      action={
-        newerReleases.length > 0 ? (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
-            {newerReleases.length} available update
-            {newerReleases.length > 1 ? 's' : ''}
+    <div className="p-6 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-2xl font-semibold text-white">What's New?</h3>
+        {newerReleases.length > 0 && (
+          <span className="text-[#c8af48] font-bold text-sm">
+            {newerReleases.length} update
+            {newerReleases.length > 1 ? 's' : ''} available
           </span>
-        ) : undefined
-      }
-    >
+        )}
+      </div>
       <div className="relative flex-1" style={{ minHeight: '400px' }}>
         <div
           ref={containerRef}
@@ -659,22 +789,27 @@ function ChangelogBox({ version }: { version: string }) {
               {displayReleases.slice(0, visibleCount).map((release, idx) => (
                 <Card
                   key={release.id || release.tag_name}
-                  className="bg-gray-900/60 border border-gray-800 relative"
+                  className={cn(
+                    'border bg-gray-800/60 border-gray-800 relative',
+                    isNewerVersion(release.tag_name) && 'border-[#c8af48]/30'
+                  )}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4">
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="inline-flex items-center px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-[--brand]/20 text-[--brand] border border-[--brand]/30 break-all">
+                        <span
+                          className={cn(
+                            'text-sm sm:text-base font-semibold break-all',
+                            isNewerVersion(release.tag_name)
+                              ? 'text-[#c8af48]' // c8af48
+                              : 'text-[--brand]'
+                          )}
+                        >
                           {release.tag_name}
                         </span>
-                        {isNewerVersion(release.tag_name) && (
-                          <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                            Update!
-                          </span>
-                        )}
                       </div>
                       <div className="flex-shrink-0">
-                        <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-gray-700/60 text-gray-300 border border-gray-600/30">
+                        <span className="text-xs text-gray-400">
                           {new Date(release.published_at).toLocaleDateString()}
                         </span>
                       </div>
@@ -682,7 +817,9 @@ function ChangelogBox({ version }: { version: string }) {
                   </CardHeader>
                   <CardContent className="prose prose-invert prose-sm max-w-none [&_p]:text-sm [&_ul]:text-sm [&_li]:text-sm [&_h1]:text-xl [&_h2]:text-lg [&_h3]:text-base [&_*]:break-all">
                     <ReactMarkdown>
-                      {release.body || 'No changelog provided.'}
+                      {release.body
+                        ? release.body.replace(release.tag_name, '')
+                        : 'No changelog provided.'}
                     </ReactMarkdown>
                   </CardContent>
                   <CardFooter>
@@ -690,10 +827,13 @@ function ChangelogBox({ version }: { version: string }) {
                       href={release.html_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[--brand] hover:underline flex items-center gap-2 text-xs"
+                      className="text-white hover:underline flex items-center justify-between w-full text-xs"
                     >
-                      <GithubIcon className="w-4 h-4" />
-                      View on GitHub
+                      <span className="flex items-center gap-2">
+                        <FaGithub className="w-4 h-4" />
+                        View on GitHub
+                      </span>
+                      <FaChevronRight className="w-4 h-4" />
                     </a>
                   </CardFooter>
                 </Card>
@@ -756,7 +896,7 @@ function ChangelogBox({ version }: { version: string }) {
           </div>
         )}
       </div>
-    </SettingsCard>
+    </div>
   );
 }
 
@@ -795,7 +935,7 @@ function CustomizeModal({
       ...prev,
       addonName: name.trim(),
       addonLogo: logo?.trim(),
-      addonDescription: description?.trim(),
+      addonDescription: description?.trim() || undefined,
     }));
 
     toast.success('Customization saved');
@@ -862,6 +1002,79 @@ function CustomizeModal({
           </div>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+function SetupChoiceModal({
+  open,
+  onOpenChange,
+  onNextMenu,
+  onUseTemplate,
+  nextMenuText,
+  nextMenuDescription,
+  useTemplateText,
+  useTemplateDescription,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onNextMenu: () => void;
+  onUseTemplate: () => void;
+  nextMenuText: string;
+  nextMenuDescription: string;
+  useTemplateText: string;
+  useTemplateDescription: string;
+}) {
+  return (
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Get Started"
+      description="Choose how you'd like to set up AIOStreams"
+    >
+      <div className="space-y-4">
+        <button
+          onClick={onNextMenu}
+          className="w-full p-6 rounded-lg border-2 border-gray-700 bg-gray-800/50 hover:border-purple-500 hover:bg-purple-500/10 transition-all duration-200 text-left group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
+              <FaPlay className="w-5 h-5 text-purple-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-white mb-2">
+                {nextMenuText}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {/* Build your configuration from scratch. Perfect if you want
+                complete control over every setting. */}
+                {nextMenuDescription}
+              </p>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={onUseTemplate}
+          className="w-full p-6 rounded-lg border-2 border-gray-700 bg-gray-800/50 hover:border-blue-500 hover:bg-blue-500/10 transition-all duration-200 text-left group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
+              <PlusIcon className="w-5 h-5 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-white mb-2">
+                {useTemplateText}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {/* Start with a pre-configured template. Great for getting up and
+                running quickly with recommended settings. */}
+                {useTemplateDescription}
+              </p>
+            </div>
+          </div>
+        </button>
+      </div>
     </Modal>
   );
 }

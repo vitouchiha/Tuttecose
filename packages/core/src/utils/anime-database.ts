@@ -708,8 +708,9 @@ export class AnimeDatabase {
         const isDbMissing = !(await this.fileExists(source.filePath));
         const isOutOfDate =
           !remoteEtag || !localEtag || remoteEtag !== localEtag;
+        const fetchFromRemote = isDbMissing || isOutOfDate;
 
-        if (isDbMissing || isOutOfDate) {
+        if (fetchFromRemote) {
           logger.info(
             `[${source.name}] Source is missing or out of date. Downloading...`
           );
@@ -722,7 +723,19 @@ export class AnimeDatabase {
         } else {
           logger.info(`[${source.name}] Source is up to date.`);
         }
-        await this[source.loader]();
+        try {
+          await this[source.loader]();
+        } catch (error) {
+          // if we didnt fetch from remote and loading it failed, force a refresh next time by deleting the local file and etag
+          if (!fetchFromRemote) {
+            logger.debug(
+              `[${source.name}] Deleting local file and etag due to error.`
+            );
+            await fs.unlink(source.etagPath);
+            await fs.unlink(source.filePath);
+          }
+          throw error;
+        }
       },
       {
         getContext: () => source.name,

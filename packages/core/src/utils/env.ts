@@ -14,9 +14,9 @@ import {
   port,
   EnvMissingError,
 } from 'envalid';
-import { ResourceManager } from './resources.js';
 import * as constants from './constants.js';
 import { randomBytes } from 'crypto';
+import fs from 'fs';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -29,7 +29,19 @@ try {
 }
 let metadata: any = undefined;
 try {
-  metadata = ResourceManager.getResource('metadata.json') || {};
+  function getResource(resourceName: string) {
+    const filePath = path.join(
+      __dirname,
+      '../../../../',
+      'resources',
+      resourceName
+    );
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Resource ${resourceName} not found at ${filePath}`);
+    }
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  }
+  metadata = getResource('metadata.json') || {};
 } catch (error) {
   console.error('Error loading metadata.json file', error);
 }
@@ -169,10 +181,10 @@ const userAgent = makeValidator((x) => {
 });
 
 // comma separated list of alias:uuid
-const aliasedUUIDs = makeValidator((x) => {
+const aliasedUUIDs = makeExactValidator((x) => {
   try {
-    const aliases: Record<string, { uuid: string; password: string }> = {};
-    const parsed = x.split(',').map((x) => {
+    const aliases: Map<string, { uuid: string; password: string }> = new Map();
+    x.split(',').forEach((x) => {
       const [alias, uuid, password] = x.split(':');
       if (!alias || !uuid || !password) {
         throw new Error('Invalid alias:uuid:password pair');
@@ -183,7 +195,7 @@ const aliasedUUIDs = makeValidator((x) => {
       ) {
         throw new Error('Invalid UUID');
       }
-      aliases[alias] = { uuid, password };
+      aliases.set(alias, { uuid, password });
     });
     return aliases;
   } catch (e) {
@@ -198,6 +210,24 @@ const readonly = makeValidator((x) => {
     throw new EnvError('Readonly environment variable, cannot be set');
   }
   return x;
+});
+
+const proxyAuth = makeValidator((x) => {
+  if (typeof x !== 'string') {
+    throw new EnvError('Proxy auth must be a string');
+  }
+  // comma separated list of username:password
+  const userMap: Map<string, string> = new Map();
+  x.split(',').forEach((x) => {
+    const [username, password] = x.split(':');
+    if (!username || !password) {
+      throw new EnvError(
+        'Proxy auth must be a comma separated list of username:password pairs'
+      );
+    }
+    userMap.set(username, password);
+  });
+  return userMap;
 });
 
 const boolOrList = makeValidator((x) => {
@@ -314,7 +344,7 @@ export const Env = cleanEnv(process.env, {
     desc: 'Port to run the addon on',
   }),
   PTT_PORT: port({
-    default: 3001,
+    default: 7070,
     desc: 'Port to run the PTT server on (only used on Windows)',
   }),
   PTT_SOCKET: str({
@@ -363,7 +393,7 @@ export const Env = cleanEnv(process.env, {
     desc: 'Mapping of URLs to another, converts requests to the original URL to the mapped URL',
   }),
   ALIASED_CONFIGURATIONS: aliasedUUIDs({
-    default: {},
+    default: new Map(),
     desc: 'Comma separated list of alias:uuid:encryptedPassword pairs. Can then access at /stremio/u/alias/manifest.json ',
   }),
   TRUSTED_UUIDS: str({
@@ -601,7 +631,7 @@ export const Env = cleanEnv(process.env, {
   }),
 
   DEFAULT_TIMEOUT: num({
-    default: 10000,
+    default: 7000,
     desc: 'Default timeout for the addon',
   }),
   CATALOG_TIMEOUT: num({
@@ -1184,10 +1214,6 @@ export const Env = cleanEnv(process.env, {
     default: undefined,
     desc: 'Default StreamFusion user agent',
   }),
-  DEFAULT_STREAMFUSION_STREMTHRU_URL: url({
-    default: 'https://stremthru.13377001.xyz',
-    desc: 'Default StreamFusion StremThru URL',
-  }),
 
   SOOTIO_URL: urlOrUrlList({
     default: ['https://sootio.elfhosted.com'],
@@ -1589,6 +1615,15 @@ export const Env = cleanEnv(process.env, {
     desc: 'Default AStream user agent',
   }),
 
+  AIOSTREAMS_AUTH: proxyAuth({
+    default: undefined,
+    desc: 'Authorisation credentials for this AIOStreams instance',
+  }),
+  AIOSTREAMS_AUTH_ADMINS: commaSeparated({
+    default: undefined,
+    desc: 'Comma separated list of admin usernames. If not set, all users are admins.',
+  }),
+
   BUILTIN_STREMTHRU_URL: url({
     default: 'https://stremthru.13377001.xyz',
     desc: 'Builtin StremThru URL',
@@ -1601,10 +1636,10 @@ export const Env = cleanEnv(process.env, {
     default: 60 * 60, // 1 hour
     desc: 'Builtin Debrid playback link cache TTL',
   }),
-  BUILTIN_PLAYBACK_LINK_STORE: str({
-    choices: ['redis', 'sql'],
-    default: 'sql',
-    desc: 'Builtin Debrid playback link store',
+  BUILTIN_DEBRID_METADATA_STORE: str({
+    choices: ['redis', 'sql', 'memory'],
+    default: undefined,
+    desc: 'Builtin Debrid metadata store',
   }),
   BUILTIN_PLAYBACK_LINK_VALIDITY: num({
     default: 1 * 24 * 60 * 60, // 1 day
