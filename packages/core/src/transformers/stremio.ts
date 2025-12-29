@@ -51,8 +51,7 @@ export class StremioTransformer {
       ) => Promise<{ name: string; description: string }>;
     },
     index: number,
-    provideStreamData: boolean,
-    options?: { disableAutoplay?: boolean }
+    options?: { disableAutoplay?: boolean; provideStreamData?: boolean }
   ): Promise<AIOStream> {
     const { name, description } = stream.addon.formatPassthrough
       ? {
@@ -158,6 +157,34 @@ export class StremioTransformer {
       ytId: stream.type === 'youtube' ? stream.ytId : undefined,
       externalUrl: stream.type === 'external' ? stream.externalUrl : undefined,
       sources: stream.type === 'p2p' ? stream.torrent?.sources : undefined,
+      nzbUrl:
+        stream.type === constants.STREMIO_USENET_STREAM_TYPE
+          ? stream.nzbUrl
+          : undefined,
+      servers:
+        stream.type === constants.STREMIO_USENET_STREAM_TYPE
+          ? stream.servers
+          : undefined,
+      rarUrls:
+        stream.type === constants.ARCHIVE_STREAM_TYPE
+          ? stream.rarUrls
+          : undefined,
+      zipUrls:
+        stream.type === constants.ARCHIVE_STREAM_TYPE
+          ? stream.zipUrls
+          : undefined,
+      '7zipUrls':
+        stream.type === constants.ARCHIVE_STREAM_TYPE
+          ? stream['7zipUrls']
+          : undefined,
+      tgzUrls:
+        stream.type === constants.ARCHIVE_STREAM_TYPE
+          ? stream.tgzUrls
+          : undefined,
+      tarUrls:
+        stream.type === constants.ARCHIVE_STREAM_TYPE
+          ? stream.tarUrls
+          : undefined,
       subtitles: stream.subtitles,
       behaviorHints: {
         countryWhitelist: stream.countryWhitelist,
@@ -174,7 +201,7 @@ export class StremioTransformer {
         videoSize: stream.size,
         filename: stream.filename,
       },
-      streamData: provideStreamData
+      streamData: options?.provideStreamData
         ? {
             type: stream.type,
             proxied: stream.proxied,
@@ -193,6 +220,8 @@ export class StremioTransformer {
             message: stream.message,
             regexMatched: stream.regexMatched,
             keywordMatched: stream.keywordMatched,
+            streamExpressionMatched: stream.streamExpressionMatched,
+            seadex: stream.seadex,
             id: stream.id,
           }
         : undefined,
@@ -219,13 +248,10 @@ export class StremioTransformer {
 
     transformedStreams = await Promise.all(
       streams.map((stream: ParsedStream, index: number) =>
-        this.convertParsedStreamToStream(
-          stream,
-          formatter,
-          index,
-          provideStreamData ?? false,
-          { disableAutoplay: disableAutoplay ?? false }
-        )
+        this.convertParsedStreamToStream(stream, formatter, index, {
+          disableAutoplay: disableAutoplay ?? false,
+          provideStreamData: provideStreamData ?? false,
+        })
       )
     );
 
@@ -347,13 +373,10 @@ export class StremioTransformer {
         if (video.streams && video.streams.length > 0) {
           const transformedStreams = await Promise.all(
             video.streams.map((stream, index) =>
-              this.convertParsedStreamToStream(
-                stream,
-                formatter!,
-                index,
-                provideStreamData ?? false,
-                { disableAutoplay: disableAutoplay ?? false }
-              )
+              this.convertParsedStreamToStream(stream, formatter!, index, {
+                disableAutoplay: disableAutoplay ?? false,
+                provideStreamData: provideStreamData ?? false,
+              })
             )
           );
           video.streams = transformedStreams as unknown as ParsedStream[];

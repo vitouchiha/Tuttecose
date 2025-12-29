@@ -12,10 +12,14 @@ import {
 } from '../utils/index.js';
 import { StreamType } from '../utils/constants.js';
 import { StreamSelector } from '../parser/streamExpression.js';
-import StreamUtils from './utils.js';
+import StreamUtils, { shouldPassthroughStage } from './utils.js';
 import { MetadataService } from '../metadata/service.js';
 import { Metadata } from '../metadata/utils.js';
-import { preprocessTitle, titleMatch } from '../parser/utils.js';
+import {
+  normaliseTitle,
+  preprocessTitle,
+  titleMatch,
+} from '../parser/utils.js';
 import { partial_ratio } from 'fuzzball';
 import { calculateAbsoluteEpisode } from '../builtins/utils/general.js';
 import { formatBytes } from '../formatters/utils.js';
@@ -301,6 +305,7 @@ class StreamFilterer {
             ).toString();
           }
         }
+        const metadataStart = Date.now();
         requestedMetadata = await new MetadataService({
           tmdbAccessToken: this.userData.tmdbAccessToken,
           tmdbApiKey: this.userData.tmdbApiKey,
@@ -359,21 +364,17 @@ class StreamFilterer {
         if (yearWithinTitle) {
           yearWithinTitleRegex = new RegExp(`${yearWithinTitle[0]}`, 'g');
         }
-        logger.info(`Fetched metadata for ${id}`, requestedMetadata);
+        logger.info(`Fetched metadata`, {
+          id,
+          time: getTimeTakenSincePoint(metadataStart),
+          ...requestedMetadata,
+        });
       } catch (error) {
         logger.warn(
           `Error fetching titles for ${id}, title/year matching will not be performed: ${error}`
         );
       }
     }
-
-    const normaliseTitle = (title: string) => {
-      return title
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^\p{L}\p{N}+]/gu, '')
-        .toLowerCase();
-    };
 
     const applyDigitalReleaseFilter = () => {
       logger.debug(`Applying digital release filter for ${id}`, {
@@ -682,57 +683,75 @@ class StreamFilterer {
           seasons = [1];
         }
       }
+
       if (
         requestedSeason &&
         seasons &&
         seasons.length > 0 &&
         !seasons.includes(requestedSeason)
       ) {
-        // If absolute episode matches, and parsed season is 1, allow even if season is incorrect
         if (
-          seasons?.[0] === 1 &&
+          seasons[0] === 1 &&
           stream.parsedFile?.episodes?.length &&
           requestedMetadata?.absoluteEpisode &&
           stream.parsedFile?.episodes?.includes(
             requestedMetadata.absoluteEpisode
           )
         ) {
-          // allow
+          // allow if absolute episode matches AND season is 1
         } else {
           return false;
         }
       }
 
-      // is the present episode incorrect (does not match either the requested episode or absolute episode if present)
       if (
         requestedEpisode &&
         stream.parsedFile?.episodes?.length &&
-        !stream.parsedFile?.episodes?.includes(requestedEpisode) &&
-        (requestedMetadata?.absoluteEpisode
-          ? !stream.parsedFile?.episodes?.includes(
-              requestedMetadata.absoluteEpisode
-            )
-          : true)
+        !stream.parsedFile?.episodes?.includes(requestedEpisode)
       ) {
-        return false;
+        if (
+          requestedMetadata?.absoluteEpisode &&
+          stream.parsedFile?.episodes?.includes(
+            requestedMetadata.absoluteEpisode
+          ) &&
+          (!seasons?.length || seasons[0] === 1)
+        ) {
+          // allow if absolute episode matches AND (no season OR season is 1)
+        } else {
+          return false;
+        }
       }
-
-      // if episode is present, but season is not
 
       return true;
     };
 
     // Early digital release filter check - if it returns false, filter out all streams
+    // except those with passthrough for 'digitalRelease' stage
     if (!applyDigitalReleaseFilter()) {
-      // Set the count to total streams since ALL streams are filtered out
-      this.filterStatistics.removed.noDigitalRelease.total = streams.length;
-      this.filterStatistics.removed.noDigitalRelease.details[
-        'No digital release available'
-      ] = streams.length;
+      const passthroughDigitalRelease = streams.filter((stream) =>
+        shouldPassthroughStage(stream, 'digitalRelease')
+      );
+      const filteredCount = streams.length - passthroughDigitalRelease.length;
+      if (filteredCount > 0) {
+        this.filterStatistics.removed.noDigitalRelease.total = filteredCount;
+        this.filterStatistics.removed.noDigitalRelease.details[
+          'No digital release available'
+        ] = filteredCount;
+      }
+      if (passthroughDigitalRelease.length > 0) {
+        this.incrementIncludedReason(
+          'passthrough',
+          `digitalRelease (${passthroughDigitalRelease.length})`
+        );
+      }
 
-      const finalStreams: ParsedStream[] = [];
-      this.generateFilterSummary(streams, finalStreams, start);
-      return finalStreams;
+      if (passthroughDigitalRelease.length === 0) {
+        const finalStreams: ParsedStream[] = [];
+        this.generateFilterSummary(streams, finalStreams, start);
+        return finalStreams;
+      }
+      // Continue with only passthrough streams
+      streams = passthroughDigitalRelease;
     }
 
     const excludedRegexPatterns =
@@ -915,7 +934,7 @@ class StreamFilterer {
     const shouldKeepStream = async (stream: ParsedStream): Promise<boolean> => {
       const file = stream.parsedFile;
 
-      if (stream.addon.resultPassthrough) {
+      if (shouldPassthroughStage(stream, 'filter')) {
         this.incrementIncludedReason('passthrough', stream.addon.name);
         return true;
       }
@@ -1551,7 +1570,7 @@ class StreamFilterer {
         }
       }
 
-      if (!performTitleMatch(stream)) {
+      if (!shouldPassthroughStage(stream, 'title') && !performTitleMatch(stream)) {
         this.incrementRemovalReason(
           'titleMatching',
           `${stream.parsedFile?.title || 'Unknown Title'}${type === 'movie' ? ` - (${stream.parsedFile?.year || 'Unknown Year'})` : ''}`
@@ -1559,7 +1578,7 @@ class StreamFilterer {
         return false;
       }
 
-      if (!performYearMatch(stream)) {
+      if (!shouldPassthroughStage(stream, 'year') && !performYearMatch(stream)) {
         this.incrementRemovalReason(
           'yearMatching',
           `${stream.parsedFile?.title || 'Unknown Title'} - ${stream.parsedFile?.year || 'Unknown Year'}`
@@ -1567,7 +1586,7 @@ class StreamFilterer {
         return false;
       }
 
-      if (!performSeasonEpisodeMatch(stream)) {
+      if (!shouldPassthroughStage(stream, 'episode') && !performSeasonEpisodeMatch(stream)) {
         const pad = (n: number) => n.toString().padStart(2, '0');
         const s = stream.parsedFile?.seasons;
         const e = stream.parsedFile?.episodes;
@@ -1603,6 +1622,10 @@ class StreamFilterer {
           normaliseSizeRange(global?.movies);
       } else {
         minMax =
+          (isAnime
+            ? normaliseSizeRange(resolution?.anime) ||
+              normaliseSizeRange(global?.anime)
+            : undefined) ||
           normaliseSizeRange(resolution?.series) ||
           normaliseSizeRange(global?.series);
       }
@@ -1698,9 +1721,16 @@ class StreamFilterer {
       queryType = `anime.${queryType}`;
     }
 
-    const passthroughStreams = streams
-      .filter((stream) => stream.addon.resultPassthrough)
+    // Get streams that passthrough excluded SEL
+    const excludedPassthroughStreams = streams
+      .filter((stream) => shouldPassthroughStage(stream, 'excluded'))
       .map((stream) => stream.id);
+
+    // Get streams that passthrough required SEL
+    const requiredPassthroughStreams = streams
+      .filter((stream) => shouldPassthroughStage(stream, 'required'))
+      .map((stream) => stream.id);
+
     if (
       this.userData.excludedStreamExpressions &&
       this.userData.excludedStreamExpressions.length > 0
@@ -1716,10 +1746,10 @@ class StreamFilterer {
             expression
           );
 
-          // Track these stream objects for removal
+          // Track these stream objects for removal (except passthrough streams)
           selectedStreams.forEach(
             (stream) =>
-              !passthroughStreams.includes(stream.id) &&
+              !excludedPassthroughStreams.includes(stream.id) &&
               streamsToRemove.add(stream.id)
           );
 
@@ -1756,7 +1786,7 @@ class StreamFilterer {
     ) {
       const selector = new StreamSelector(queryType);
       const streamsToKeep = new Set<string>(); // Track actual stream objects to be removed
-      passthroughStreams.forEach((stream) => streamsToKeep.add(stream));
+      requiredPassthroughStreams.forEach((stream) => streamsToKeep.add(stream));
 
       for (const expression of this.userData.requiredStreamExpressions) {
         try {
@@ -1788,7 +1818,7 @@ class StreamFilterer {
       }
 
       logger.verbose(
-        `Total streams selected by required conditions: ${streamsToKeep.size} (including ${passthroughStreams.length} passthrough streams)`
+        `Total streams selected by required conditions: ${streamsToKeep.size} (including ${requiredPassthroughStreams.length} passthrough streams)`
       );
       // remove all streams that are not in the streamsToKeep set
       streams = streams.filter((stream) => streamsToKeep.has(stream.id));

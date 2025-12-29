@@ -195,7 +195,9 @@ export class AIOStreams {
       }))
     );
 
-    let finalStreams = await this._processStreams(streams, type, id);
+    const processResults = await this._processStreams(streams, type, id);
+    let finalStreams = processResults.streams;
+    errors.push(...processResults.errors);
 
     // if this.userData.precacheNextEpisode is true, start a new thread to request the next episode, check if
     // all provider streams are uncached, and only if so, then send a request to the first uncached stream in the list.
@@ -552,12 +554,9 @@ export class AIOStreams {
               if (!video.streams) {
                 return video;
               }
-              video.streams = await this._processStreams(
-                video.streams,
-                type,
-                id,
-                true
-              );
+              video.streams = (
+                await this._processStreams(video.streams, type, id, true)
+              ).streams;
               return video;
             })
           );
@@ -1094,6 +1093,63 @@ export class AIOStreams {
     return this.addons.find((a) => a.instanceId === instanceId);
   }
 
+  public async shouldStopAutoPlay(type: string, id: string): Promise<boolean> {
+    if (
+      !this.userData.areYouStillThere?.enabled ||
+      !this.userData.uuid ||
+      type !== 'series'
+    ) {
+      return false;
+    }
+    logger.info(`Determining if autoplay should be stopped`, {
+      type,
+      id,
+      uuid: this.userData.uuid,
+    });
+    // Decide whether to disable autoplay (suppress bingeGroup) per user+show
+    let disableAutoplay = false;
+
+    const cfg = this.userData.areYouStillThere;
+    const threshold = cfg.episodesBeforeCheck ?? 3;
+    const cooldownMs = (cfg.cooldownMinutes ?? 60) * 60 * 1000;
+    const cache = Cache.getInstance<string, { count: number; lastAt: number }>(
+      'ays',
+      10000,
+      Env.REDIS_URI ? undefined : 'sql'
+    );
+    const parsed = IdParser.parse(id, type);
+    const baseSeriesKey = parsed
+      ? `${parsed.type}:${parsed.value}`
+      : id.split(':')[0] || id;
+    const key = `${this.userData.uuid}:${baseSeriesKey}`;
+    logger.debug(`Formed AYS cache key: ${key}`);
+    const now = Date.now();
+    const prev = (await cache.get(key)) || { count: 0, lastAt: 0 };
+    const withinWindow = now - prev.lastAt <= cooldownMs;
+    const nextCount = withinWindow ? prev.count + 1 : 1;
+    if (nextCount >= threshold) {
+      // Trigger: disable autoplay for this response and reset counter
+      disableAutoplay = true;
+      await cache.set(
+        key,
+        { count: 0, lastAt: now },
+        Math.ceil(cooldownMs / 1000)
+      );
+    } else {
+      await cache.set(
+        key,
+        { count: nextCount, lastAt: now },
+        Math.ceil(cooldownMs / 1000)
+      );
+    }
+    logger.info(`Autoplay disable check result`, {
+      disableAutoplay,
+      count: nextCount,
+      withinWindow,
+    });
+    return disableAutoplay;
+  }
+
   private async getProxyIp() {
     let userIp = this.userData.ip;
     const PRIVATE_IP_REGEX =
@@ -1121,6 +1177,7 @@ export class AIOStreams {
     label: string,
     maxRetries: number = 3
   ): Promise<T> {
+    let lastError: string | null = null;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const result = await getter();
@@ -1128,12 +1185,18 @@ export class AIOStreams {
           return result;
         }
       } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
         logger.warn(
-          `Failed to get ${label}, retrying... (${attempt}/${maxRetries}), error=${error instanceof Error ? error.message : String(error)}`
+          `Failed to get ${label}, retrying... (${attempt}/${maxRetries})`,
+          {
+            error: lastError,
+          }
         );
       }
     }
-    throw new Error(`Failed to get ${label} after ${maxRetries} attempts`);
+    throw new Error(
+      `Failed to get ${label} after ${maxRetries} attempts: ${lastError}`
+    );
   }
   // stream utility functions
   private async assignPublicIps() {
@@ -1304,33 +1367,44 @@ export class AIOStreams {
     type: string,
     id: string,
     isMeta: boolean = false
-  ): Promise<ParsedStream[]> {
+  ): Promise<{ streams: ParsedStream[]; errors: AIOStreamsError[] }> {
     let processedStreams = streams;
+    let errors: AIOStreamsError[] = [];
 
     if (isMeta) {
+      // Run SeaDex precompute before filter so seadex() works in Included SEL
+      await this.precomputer.precomputeSeaDexOnly(processedStreams, id);
       processedStreams = await this.filterer.filter(processedStreams, type, id);
     }
 
     processedStreams = await this.deduplicator.deduplicate(processedStreams);
 
     if (isMeta) {
-      await this.precomputer.precompute(processedStreams, type, id);
+      // Run preferred matching after filter
+      await this.precomputer.precomputePreferred(processedStreams, type, id);
     }
 
-    let finalStreams = this.applyModifications(
-      await this.proxifier.proxify(
-        await this.filterer.applyStreamExpressionFilters(
-          await this.limiter.limit(
-            await this.sorter.sort(
-              processedStreams,
-              AnimeDatabase.getInstance().isAnime(id) ? 'anime' : type
-            )
-          ),
-          type,
-          id
+    let finalStreams = await this.filterer.applyStreamExpressionFilters(
+      await this.limiter.limit(
+        await this.sorter.sort(
+          processedStreams,
+          AnimeDatabase.getInstance().isAnime(id) ? 'anime' : type
         )
-      )
-    ).map((stream) => {
+      ),
+      type,
+      id
+    );
+
+    const { streams: proxiedStreams, error } =
+      await this.proxifier.proxify(finalStreams);
+
+    if (error) {
+      errors.push({
+        title: `Proxifier Error`,
+        description: error,
+      });
+    }
+    finalStreams = this.applyModifications(proxiedStreams).map((stream) => {
       if (stream.parsedFile) {
         stream.parsedFile.visualTags = stream.parsedFile.visualTags.filter(
           (tag) => !constants.FAKE_VISUAL_TAGS.includes(tag as any)
@@ -1355,7 +1429,7 @@ export class AIOStreams {
       finalStreams = streamsWithExternalDownloads;
     }
 
-    return finalStreams;
+    return { streams: finalStreams, errors };
   }
 
   private async _fetchAndHandleRedirects(stream: ParsedStream, id: string) {

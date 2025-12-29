@@ -37,6 +37,7 @@ export class TorznabPreset extends BuiltinAddonPreset {
         description: 'The path to the Torznab API. Usually /api.',
         type: 'string',
         required: false,
+        showInSimpleMode: false,
         default: '/api',
       },
       {
@@ -105,12 +106,22 @@ export class TorznabPreset extends BuiltinAddonPreset {
           'The search mode to use when querying the Torznab endpoint. **Note**: `Both` will result in two addons being created, one for each search mode.',
         type: 'select',
         required: false,
+        showInSimpleMode: false,
         default: 'auto',
         options: [
           { label: 'Auto', value: 'auto' },
           { label: 'Forced Query', value: 'query' },
           { label: 'Both', value: 'both' },
         ],
+      },
+      {
+        id: 'paginate',
+        name: 'Paginate Results',
+        description:
+          'Whether to paginate through all available results when searching. Enabling this can provide more results at the cost of increased search time and more requests.',
+        type: 'boolean',
+        default: false,
+        required: false,
       },
       {
         id: 'useMultipleInstances',
@@ -221,6 +232,7 @@ export class TorznabPreset extends BuiltinAddonPreset {
       apiPath: options.apiPath,
       apiKey: options.apiKey,
       forceQuerySearch: options.forceQuerySearch ?? false,
+      paginate: options.paginate ?? false,
     };
 
     const configString = this.base64EncodeJSON(config, 'urlSafe');

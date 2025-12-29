@@ -3,6 +3,16 @@ import { createLogger } from '../utils/index.js';
 
 const logger = createLogger('parser');
 
+const umlautMap: Record<string, string> = {
+  Ä: 'Ae',
+  ä: 'ae',
+  Ö: 'Oe',
+  ö: 'oe',
+  Ü: 'Ue',
+  ü: 'ue',
+  ß: 'ss',
+};
+
 export function titleMatch(
   parsedTitle: string,
   titles: string[],
@@ -36,7 +46,7 @@ export function preprocessTitle(
   let preprocessedTitle = parsedTitle;
 
   const separatorPatterns = [
-    /\s*\/\s*/,
+    /\s*[\/\|]\s*/,
     /[\s\.\-\(]+a[\s\.]?k[\s\.]?a[\s\.\)\-]+/i,
     /\s*\(([^)]+)\)$/,
   ];
@@ -54,7 +64,7 @@ export function preprocessTitle(
         if (parts.length > 1 && parts[0]?.trim()) {
           const originalTitle = preprocessedTitle;
           preprocessedTitle = parts[0].trim();
-          logger.debug(
+          logger.silly(
             `Updated title from "${originalTitle}" to "${preprocessedTitle}"`
           );
           break;
@@ -76,6 +86,7 @@ export function preprocessTitle(
 
 export function normaliseTitle(title: string) {
   return title
+    .replace(/[ÄäÖöÜüß]/g, (c) => umlautMap[c])
     .replace(/&/g, 'and')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -84,11 +95,10 @@ export function normaliseTitle(title: string) {
 }
 
 export function cleanTitle(title: string) {
-  const umlautMap: Record<string,string> = {
-    'Ä':'Ae','ä':'ae','Ö':'Oe','ö':'oe','Ü':'Ue','ü':'ue','ß':'ss'
-  };
   // replace German umlauts with ASCII equivalents, then normalize to NFD
-  let cleaned = title.replace(/[ÄäÖöÜüß]/g, c => umlautMap[c]).normalize('NFD');
+  let cleaned = title
+    .replace(/[ÄäÖöÜüß]/g, (c) => umlautMap[c])
+    .normalize('NFD');
 
   for (const char of ['♪', '♫', '★', '☆', '♡', '♥', '-']) {
     cleaned = cleaned.replaceAll(char, ' ');
@@ -101,6 +111,35 @@ export function cleanTitle(title: string) {
     .replace(/\s+/g, ' ') // Normalise spaces
     .toLowerCase()
     .trim();
+}
+
+export function parseDuration(
+  durationString: string,
+  output: 'ms' | 's' = 'ms'
+): number | undefined {
+  // Regular expression to match different formats of time durations
+  const regex =
+    /(?<![^\s\[(_\-,.])(?:(\d+)h[:\s]?(\d+)m[:\s]?(\d+)s|(\d+)h[:\s]?(\d+)m|(\d+)m[:\s]?(\d+)s|(\d+)h|(\d+)m|(\d+)s)(?=[\s\)\]_.\-,]|$)/gi;
+
+  const match = regex.exec(durationString);
+  if (!match) {
+    return 0;
+  }
+
+  const hours = parseInt(match[1] || match[4] || match[8] || '0', 10);
+  const minutes = parseInt(
+    match[2] || match[5] || match[6] || match[9] || '0',
+    10
+  );
+  const seconds = parseInt(match[3] || match[7] || match[10] || '0', 10);
+
+  // Convert to milliseconds
+  const totalMilliseconds = (hours * 3600 + minutes * 60 + seconds) * 1000;
+  if (output === 's') {
+    return Math.floor(totalMilliseconds / 1000);
+  }
+
+  return totalMilliseconds;
 }
 
 export function parseAgeString(ageString: string): number | undefined {

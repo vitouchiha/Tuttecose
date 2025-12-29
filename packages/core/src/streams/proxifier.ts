@@ -1,5 +1,5 @@
 import { ParsedStream, UserData } from '../db/schemas.js';
-import { constants, createLogger } from '../utils/index.js';
+import { constants, createLogger, Env } from '../utils/index.js';
 import { createProxy } from '../proxy/index.js';
 
 const logger = createLogger('proxy');
@@ -20,15 +20,6 @@ class Proxifier {
     if (stream.proxied) {
       return false;
     }
-    // never proxy nzbdav or altmount streams via global proxy
-    if (
-      stream.service &&
-      [constants.NZBDAV_SERVICE, constants.ALTMOUNT_SERVICE].includes(
-        stream.service.id
-      )
-    ) {
-      return false;
-    }
     let streamUrl: URL;
     let proxyUrl: URL;
     try {
@@ -39,6 +30,18 @@ class Proxifier {
         `URL parsing failed somehow: stream: ${JSON.stringify(stream)}, proxy: ${JSON.stringify(proxy)}`
       );
       logger.error(error);
+      return false;
+    }
+    // do not proxy the stream if it is a nzbdav/altmount stream from a built-in addon and the proxy is not the built-in proxy (i.e. only allow using built-in proxy for these)
+    if (
+      stream.service &&
+      [constants.NZBDAV_SERVICE, constants.ALTMOUNT_SERVICE].includes(
+        stream.service.id
+      ) &&
+      (streamUrl.host == new URL(Env.INTERNAL_URL).host ||
+        streamUrl.host == new URL(Env.BASE_URL).host) &&
+      proxy.id !== 'builtin'
+    ) {
       return false;
     }
     if (
@@ -64,9 +67,11 @@ class Proxifier {
     return false;
   }
 
-  public async proxify(streams: ParsedStream[]): Promise<ParsedStream[]> {
+  public async proxify(
+    streams: ParsedStream[]
+  ): Promise<{ streams: ParsedStream[]; error?: string }> {
     if (!this.userData.proxy?.enabled) {
-      return streams;
+      return { streams };
     }
 
     const streamsToProxy = streams
@@ -74,7 +79,7 @@ class Proxifier {
       .filter(({ stream }) => stream.url && this.shouldProxyStream(stream));
 
     if (streamsToProxy.length === 0) {
-      return streams;
+      return { streams };
     }
 
     const normaliseHeaders = (
@@ -131,13 +136,15 @@ class Proxifier {
         )
       : [];
 
-    logger.info(`Generated ${(proxiedUrls || []).length} proxied URLs`);
+    const count =
+      proxiedUrls && !('error' in proxiedUrls) ? proxiedUrls.length : 0;
+    logger.info(`Generated ${count} proxied URLs`);
 
     const removeIndexes = new Set<number>();
 
     streamsToProxy.forEach(({ stream, index }, i) => {
-      const proxiedUrl = proxiedUrls?.[i];
-      if (proxiedUrl) {
+      if (proxiedUrls && !('error' in proxiedUrls)) {
+        const proxiedUrl = proxiedUrls?.[i];
         stream.url = proxiedUrl;
         stream.proxied = true;
         // proxy will handle request headers, can be removed here
@@ -154,7 +161,11 @@ class Proxifier {
       streams = streams.filter((_, index) => !removeIndexes.has(index));
     }
 
-    return streams;
+    return {
+      streams,
+      error:
+        proxiedUrls && 'error' in proxiedUrls ? proxiedUrls.error : undefined,
+    };
   }
 }
 

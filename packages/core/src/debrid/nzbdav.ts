@@ -6,7 +6,7 @@ import {
   UsenetStreamService,
   UsenetStreamServiceConfig,
 } from './usenet-stream-base.js';
-import { DebridServiceConfig } from './base.js';
+import { DebridServiceConfig, PlaybackInfo } from './base.js';
 import { ServiceId, createLogger, fromUrlSafeBase64 } from '../utils/index.js';
 
 const logger = createLogger('nzbdav');
@@ -51,8 +51,9 @@ export class NzbDAVService extends UsenetStreamService {
     return '/content';
   }
 
-  protected getExpectedFolderName(nzbUrl: string, filename: string): string {
-    // NzbDAV uses the filename parameter
-    return filename;
+  protected getExpectedFolderName(
+    nzb: PlaybackInfo & { type: 'usenet' }
+  ): string {
+    return nzb.filename ?? 'unknown_nzb';
   }
 }

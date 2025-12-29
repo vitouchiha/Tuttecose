@@ -15,6 +15,19 @@ const AudioChannels = z.enum(constants.AUDIO_CHANNELS);
 
 const Encodes = z.enum(constants.ENCODES);
 
+const PassthroughStages = z.enum(constants.PASSTHROUGH_STAGES);
+
+// Passthrough can be:
+// - true: bypass all stages (backward compatible)
+// - array of stages: bypass only specified stages
+const PassthroughSchema = z.union([
+  z.literal(true),
+  z.array(PassthroughStages).min(1),
+]);
+
+export type PassthroughValue = z.infer<typeof PassthroughSchema>;
+export type PassthroughStage = z.infer<typeof PassthroughStages>;
+
 // const SortCriteria = z.enum(constants.SORT_CRITERIA);
 
 // const SortDirections = z.enum(constants.SORT_DIRECTIONS);
@@ -82,6 +95,7 @@ const SizeFilter = z.object({
     //   max: z.number().min(1).optional(),
     // })
     .optional(),
+  anime: z.tuple([z.number().min(0), z.number().min(0)]).optional(),
 });
 
 const SizeFilterOptions = z.object({
@@ -161,6 +175,7 @@ const DeduplicatorMode = z.enum([
 
 const DeduplicatorOptions = z.object({
   enabled: z.boolean().optional(),
+  excludeAddons: z.array(z.string().min(1)).optional(),
   multiGroupBehaviour: z
     .enum(['keep_all', 'aggressive', 'conservative'])
     .optional(),
@@ -192,6 +207,7 @@ const OptionDefinition = z.object({
     'alert',
     'socials',
     'oauth',
+    'custom-nntp-servers',
   ]),
   oauth: z
     .object({
@@ -270,7 +286,7 @@ export type Group = z.infer<typeof Group>;
 const CatalogModification = z.object({
   id: z.string().min(1), // an id that maps to an actual catalog ID
   type: z.string().min(1), // the type of catalog modification
-  name: z.string().min(1).optional(), // override the name of the catalog
+  name: z.string().optional(), // override the name of the catalog
   shuffle: z.boolean().optional(), // shuffle the catalog
   reverse: z.boolean().optional(), // reverse the catalog
   persistShuffleFor: z.number().min(0).max(24).optional(), // persist the shuffle for a given amount of time (in hours)
@@ -281,7 +297,7 @@ const CatalogModification = z.object({
   overrideType: z.string().min(1).optional(), // override the type of the catalog
   hideable: z.boolean().optional(), // hide the catalog from the home page
   searchable: z.boolean().optional(), // property of whether the catalog is searchable (not a search only catalog)
-  addonName: z.string().min(1).optional(), // the name of the addon that provides the catalog
+  addonName: z.string().optional(), // the name of the addon that provides the catalog
 });
 
 export const CacheAndPlaySchema = z
@@ -361,6 +377,7 @@ export const UserDataSchema = z.object({
   requiredAgeRange: z.tuple([z.number().min(0), z.number().min(0)]).optional(),
   ageRangeTypes: z.array(z.enum(['usenet', 'debrid', 'p2p'])).optional(),
   digitalReleaseFilter: z.boolean().optional(),
+  enableSeadex: z.boolean().optional(),
   excludeSeasonPacks: z.boolean().optional(),
   excludeCached: z.boolean().optional(),
   excludeCachedFromAddons: z.array(z.string().min(1)).optional(),
@@ -605,9 +622,34 @@ export const SubtitleResponseSchema = z.object({
 export type SubtitleResponse = z.infer<typeof SubtitleResponseSchema>;
 export type Subtitle = z.infer<typeof SubtitleSchema>;
 
+export const SourceSchema = z.object({
+  url: z.string(),
+  bytes: z.number().nullable().optional(),
+});
+
+const NNTPServerSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+  host: z.string(),
+  port: z.number(),
+  ssl: z.boolean(),
+  connections: z.number(),
+});
+
+export const NNTPServersSchema = z.array(NNTPServerSchema);
+
+export type NNTPServers = z.infer<typeof NNTPServersSchema>;
+
 export const StreamSchema = z
   .object({
     url: z.string().or(z.null()).optional(),
+    nzbUrl: z.string().or(z.null()).optional(),
+    servers: z.array(z.string().min(1)).nullable().optional(),
+    rarUrls: z.array(SourceSchema).nullable().optional(),
+    zipUrls: z.array(SourceSchema).nullable().optional(),
+    '7zipUrls': z.array(SourceSchema).nullable().optional(),
+    tgzUrls: z.array(SourceSchema).nullable().optional(),
+    tarUrls: z.array(SourceSchema).nullable().optional(),
     ytId: z.string().nullable().optional(),
     infoHash: z.string().nullable().optional(),
     fileIdx: z.number().or(z.null()).optional(),
@@ -695,7 +737,8 @@ export const ParsedStreamSchema = z.object({
       infoHash: z.string().min(1).optional(),
       fileIdx: z.number().optional(),
       seeders: z.number().optional(),
-      sources: z.array(z.string().min(1)).optional(), // array of tracker urls and DHT nodes
+      sources: z.array(z.string().min(1)).optional(),
+      private: z.boolean().optional(),
     })
     .optional(),
   countryWhitelist: z.array(z.string().length(3)).optional(),
@@ -715,7 +758,21 @@ export const ParsedStreamSchema = z.object({
     .optional(),
   duration: z.number().optional(),
   library: z.boolean().optional(),
+  seadex: z
+    .object({
+      isBest: z.boolean(),
+      isSeadex: z.boolean(),
+    })
+    .optional(),
+  passthrough: PassthroughSchema.optional(),
   url: z.string().optional(),
+  nzbUrl: z.string().optional(),
+  servers: z.array(z.string().min(1)).optional(),
+  rarUrls: z.array(SourceSchema).nullable().optional(),
+  zipUrls: z.array(SourceSchema).nullable().optional(),
+  '7zipUrls': z.array(SourceSchema).nullable().optional(),
+  tgzUrls: z.array(SourceSchema).nullable().optional(),
+  tarUrls: z.array(SourceSchema).nullable().optional(),
   ytId: z.string().min(1).optional(),
   externalUrl: z.string().min(1).optional(),
   error: z
@@ -889,6 +946,12 @@ export const AIOStream = StreamSchema.extend({
         .optional(),
       keywordMatched: z.boolean().optional(),
       streamExpressionMatched: z.number().optional(),
+      seadex: z
+        .object({
+          isBest: z.boolean(),
+          isSeadex: z.boolean(),
+        })
+        .optional(),
       size: z.number().optional(),
       folderSize: z.number().optional(),
       type: StreamTypes.optional(),
@@ -899,7 +962,8 @@ export const AIOStream = StreamSchema.extend({
           infoHash: z.string().min(1).optional(),
           fileIdx: z.number().optional(),
           seeders: z.number().optional(),
-          sources: z.array(z.string().min(1)).optional(), // array of tracker urls and DHT nodes
+          sources: z.array(z.string().min(1)).optional(),
+          private: z.boolean().optional(),
         })
         .optional(),
       duration: z.number().optional(),
@@ -933,6 +997,7 @@ const PresetMinimalMetadataSchema = z.object({
   SUPPORTED_SERVICES: z.array(z.string()),
   OPTIONS: z.array(OptionDefinition),
   BUILTIN: z.boolean().optional(),
+  CATEGORY: z.enum(constants.PRESET_CATEGORIES).optional(),
 });
 
 const PresetMetadataSchema = PresetMinimalMetadataSchema.extend({

@@ -131,7 +131,7 @@ abstract class SourceHandler {
           ? parseAgeString(torrentOrNzb.age)
           : undefined;
 
-    const name = `[${shortCode} ${cacheIndicator}${torrentOrNzb.service?.owned ? ' ☁️' : ''}] TorBox Search`;
+    const name = `[${shortCode} ${cacheIndicator}${torrentOrNzb.service?.library ? ' ☁️' : ''}] TorBox Search`;
     const description = `${torrentOrNzb.title}\n${torrentOrNzb.file.name}\n${
       torrentOrNzb.indexer ? `🔍 ${torrentOrNzb.indexer}` : ''
     } ${'seeders' in torrentOrNzb && torrentOrNzb.seeders ? `👤 ${torrentOrNzb.seeders}` : ''} ${
@@ -347,7 +347,7 @@ export class TorrentSourceHandler extends SourceHandler {
     );
 
     results.forEach((result) => {
-      result.service!.owned =
+      result.service!.library =
         fetchResult.torrents.find((torrent) => torrent.hash === result.hash)
           ?.owned ?? false;
     });
@@ -586,7 +586,7 @@ export class UsenetSourceHandler extends SourceHandler {
     );
 
     results.forEach((result) => {
-      result.service!.owned =
+      result.service!.library =
         nzbs.find((nzb) => nzb.hash === result.hash)?.owned ?? false;
     });
 

@@ -7,7 +7,7 @@ import {
   FULL_LANGUAGE_MAPPING,
 } from '../utils/index.js';
 import FileParser from './file.js';
-import { parseAgeString } from './utils.js';
+import { parseAgeString, parseDuration } from './utils.js';
 const logger = createLogger('parser');
 
 class StreamParser {
@@ -75,6 +75,12 @@ class StreamParser {
       type: 'http',
       proxied: this.isProxied(stream),
       url: this.applyUrlModifications(stream.url ?? undefined),
+      nzbUrl: stream.nzbUrl ?? undefined,
+      tarUrls: stream.tarUrls ?? undefined,
+      tgzUrls: stream.tgzUrls ?? undefined,
+      '7zipUrls': stream['7zipUrls'] ?? undefined,
+      rarUrls: stream.rarUrls ?? undefined,
+      servers: stream.servers ?? undefined,
       externalUrl: stream.externalUrl ?? undefined,
       ytId: stream.ytId ?? undefined,
       requestHeaders: stream.behaviorHints?.proxyHeaders?.request,
@@ -137,6 +143,7 @@ class StreamParser {
       sources: stream.sources ?? undefined,
       fileIdx:
         stream.fileIdx ?? this.getFileIdx(stream, parsedStream) ?? undefined,
+      private: this.isPrivate(stream, parsedStream),
     };
 
     return parsedStream;
@@ -327,6 +334,13 @@ class StreamParser {
     return false;
   }
 
+  protected isPrivate(
+    stream: Stream,
+    currentParsedStream: ParsedStream
+  ): boolean | undefined {
+    return false;
+  }
+
   protected getIndexer(
     stream: Stream,
     currentParsedStream: ParsedStream
@@ -354,15 +368,7 @@ class StreamParser {
     stream: Stream,
     currentParsedStream: ParsedStream
   ): ParsedStream['service'] | undefined {
-    const service = this.parseServiceData(stream.name || '');
-    if (
-      service &&
-      (service.id === constants.NZBDAV_SERVICE ||
-        service.id === constants.ALTMOUNT_SERVICE)
-    ) {
-      currentParsedStream.proxied = !stream.behaviorHints?.proxyHeaders;
-    }
-    return service;
+    return this.parseServiceData(stream.name || '');
   }
 
   protected getInfoHash(
@@ -385,23 +391,7 @@ class StreamParser {
     stream: Stream,
     currentParsedStream: ParsedStream
   ): number | undefined {
-    // Regular expression to match different formats of time durations
-    const regex =
-      /(?<![^\s\[(_\-,.])(?:(\d+)h[:\s]?(\d+)m[:\s]?(\d+)s|(\d+)h[:\s]?(\d+)m|(\d+)h|(\d+)m|(\d+)s)(?=[\s\)\]_.\-,]|$)/gi;
-
-    const match = regex.exec(stream.description || stream.title || '');
-    if (!match) {
-      return 0;
-    }
-
-    const hours = parseInt(match[1] || match[4] || match[6] || '0', 10);
-    const minutes = parseInt(match[2] || match[5] || match[7] || '0', 10);
-    const seconds = parseInt(match[3] || match[8] || '0', 10);
-
-    // Convert to milliseconds
-    const totalMilliseconds = (hours * 3600 + minutes * 60 + seconds) * 1000;
-
-    return totalMilliseconds;
+    return parseDuration(stream.description || '');
   }
 
   protected getStreamType(
@@ -436,6 +426,17 @@ class StreamParser {
       return 'youtube';
     }
 
+    if (stream.nzbUrl) {
+      return 'stremio-usenet';
+    }
+    if (
+      stream['7zipUrls']?.length ||
+      stream.rarUrls?.length ||
+      stream?.tarUrls?.length ||
+      stream.tgzUrls?.length
+    ) {
+      return 'archive';
+    }
     throw new Error('Invalid stream, missing a required stream property');
   }
 

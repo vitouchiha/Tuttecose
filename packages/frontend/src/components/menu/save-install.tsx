@@ -516,13 +516,24 @@ function Content() {
                   >
                     Stremio Web
                   </Button>
-                  <Button
-                    onClick={copyManifestUrl}
-                    intent="primary"
-                    className="w-full"
-                  >
-                    Copy URL
-                  </Button>
+
+                  <div className="flex items-center gap-2 mt-2">
+                    <TextInput
+                      type="text"
+                      readOnly
+                      value={manifestUrl}
+                      className="flex-1 rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-400"
+                      onClick={(e) => e.currentTarget.select()}
+                    />
+                    <Button
+                      onClick={copyManifestUrl}
+                      intent="primary"
+                      className="shrink-0 px-3"
+                      aria-label="Copy manifest URL"
+                    >
+                      <CopyIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </Modal>
             </SettingsCard>

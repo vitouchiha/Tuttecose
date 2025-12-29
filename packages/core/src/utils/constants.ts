@@ -22,6 +22,7 @@ export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   BAD_REQUEST = 'BAD_REQUEST',
   UNAUTHORIZED = 'UNAUTHORIZED',
+  FORBIDDEN = 'FORBIDDEN',
 }
 
 interface ErrorDetails {
@@ -94,6 +95,10 @@ export const ErrorMap: Record<ErrorCode, ErrorDetails> = {
     statusCode: 401,
     message: 'Unauthorized',
   },
+  [ErrorCode.FORBIDDEN]: {
+    statusCode: 403,
+    message: 'Forbidden',
+  },
 };
 
 export class APIError extends Error {
@@ -120,6 +125,8 @@ export const INTERNAL_SECRET_HEADER = Buffer.from(
   'WC1BSU9TdHJlYW1zLUludGVybmFsLVNlY3JldA==',
   'base64'
 ).toString('utf8');
+
+export const PUBLIC_NZB_PROXY_USERNAME = 'public_nzb_proxy_user';
 
 const API_VERSION = 1;
 
@@ -205,6 +212,7 @@ const SEEDR_SERVICE = 'seedr';
 const EASYNEWS_SERVICE = 'easynews';
 const NZBDAV_SERVICE = 'nzbdav';
 const ALTMOUNT_SERVICE = 'altmount';
+const STREMIO_NNTP_SERVICE = 'stremio_nntp';
 
 const SERVICES = [
   REALDEBRID_SERVICE,
@@ -221,6 +229,7 @@ const SERVICES = [
   EASYNEWS_SERVICE,
   NZBDAV_SERVICE,
   ALTMOUNT_SERVICE,
+  STREMIO_NNTP_SERVICE,
 ] as const;
 
 export const BUILTIN_SUPPORTED_SERVICES = [
@@ -235,6 +244,8 @@ export const BUILTIN_SUPPORTED_SERVICES = [
   OFFCLOUD_SERVICE,
   NZBDAV_SERVICE,
   ALTMOUNT_SERVICE,
+  STREMIO_NNTP_SERVICE,
+  EASYNEWS_SERVICE,
 ] as const;
 
 export type ServiceId = (typeof SERVICES)[number];
@@ -382,6 +393,30 @@ const SERVICE_DETAILS: Record<
         description:
           'Your Torbox API key. Obtain it from [here](https://torbox.app/settings)',
         type: 'password',
+        required: true,
+      },
+    ],
+  },
+  [STREMIO_NNTP_SERVICE]: {
+    id: STREMIO_NNTP_SERVICE,
+    name: 'Stremio NNTP',
+    shortName: 'SN',
+    knownNames: ['SN', 'Stremio NNTP', 'StremioNntp', 'Stremio-NNTP'],
+    signUpText:
+      "Stream usenet directly from your provider via Stremio's NNTP client.",
+    credentials: [
+      {
+        id: 'note',
+        name: '',
+        description: `This is a new Stremio feature that allows Stremio to connect directly to Usenet NNTP servers you provide. It is currently [only supported on Stremio V5 Desktop](https://blog.stremio.com/stremio-new-stream-sources-usenet-rar-zip-ftp-and-more/).`,
+        type: 'alert',
+        intent: 'warning',
+      },
+      {
+        id: 'servers',
+        name: 'NNTP Servers',
+        description: 'Provide your Usenet NNTP server addresses',
+        type: 'custom-nntp-servers',
         required: true,
       },
     ],
@@ -730,11 +765,8 @@ export const AUTO_PLAY_ATTRIBUTES = [
   'size',
 ] as const;
 
-const NON_DEFAULT_AUTO_PLAY_ATTRIBUTES = ['infoHash', 'size', 'type', 'addon'];
-
-export const DEFAULT_AUTO_PLAY_ATTRIBUTES = AUTO_PLAY_ATTRIBUTES.filter(
-  (attribute) => !NON_DEFAULT_AUTO_PLAY_ATTRIBUTES.includes(attribute)
-);
+export const DEFAULT_AUTO_PLAY_ATTRIBUTES: (typeof AUTO_PLAY_ATTRIBUTES)[number][] =
+  ['resolution', 'quality', 'releaseGroup'] as const;
 
 export const AUTO_PLAY_METHODS = [
   'matchingFile',
@@ -803,6 +835,7 @@ const VISUAL_TAGS = [
   'HDR10',
   'DV',
   'HDR',
+  'HLG',
   '10bit',
   '3D',
   'IMAX',
@@ -817,6 +850,7 @@ const AUDIO_TAGS = [
   'Atmos',
   'DD+',
   'DD',
+  'DTS:X',
   'DTS-HD MA',
   'DTS-HD',
   'DTS-ES',
@@ -829,6 +863,19 @@ const AUDIO_TAGS = [
 ] as const;
 
 const AUDIO_CHANNELS = ['2.0', '5.1', '6.1', '7.1', 'Unknown'] as const;
+
+// Passthrough stages that can be selectively bypassed
+const PASSTHROUGH_STAGES = [
+  'filter', // bypass main filtering (shouldKeepStream)
+  'dedup', // bypass deduplication
+  'limit', // bypass result limiting
+  'excluded', // bypass excluded stream expressions
+  'required', // bypass required stream expressions
+  'title', // bypass title matching
+  'year', // bypass year matching
+  'episode', // bypass season/episode matching
+  'digitalRelease', // bypass early digital release filter
+] as const;
 
 const ENCODES = [
   'AV1',
@@ -853,6 +900,7 @@ const SORT_CRITERIA = [
   'size',
   'service',
   'seeders',
+  'private',
   'age',
   'addon',
   'regexPatterns',
@@ -860,6 +908,7 @@ const SORT_CRITERIA = [
   'library',
   'keyword',
   'streamExpressionMatched',
+  'seadex',
 ] as const;
 
 export const MIN_SIZE = 0;
@@ -981,6 +1030,15 @@ export const SORT_CRITERIA_DETAILS: Record<
     ascendingDescription: 'Streams with fewer seeders are preferred',
     descendingDescription: 'Streams with more seeders are preferred',
   },
+  private: {
+    name: 'Private',
+    description: 'Whether the stream is from a private tracker or not',
+    defaultDirection: 'desc',
+    ascendingDescription:
+      'Streams that are not from private trackers are preferred',
+    descendingDescription:
+      'Streams that are from private trackers are preferred',
+  },
   age: {
     name: 'Age',
     description: 'Sort by the age of the stream',
@@ -1038,12 +1096,23 @@ export const SORT_CRITERIA_DETAILS: Record<
     descendingDescription:
       'Streams that match your stream expressions are preferred and ranked by the order of your stream expressions',
   },
+  seadex: {
+    name: 'SeaDex',
+    defaultDirection: 'desc',
+    description:
+      'Whether the stream is a SeaDex release (curated best anime releases from releases.moe)',
+    ascendingDescription: 'Streams that are not listed on SeaDex are preferred',
+    descendingDescription:
+      'Streams that are marked as the Best release on SeaDex are preferred, followed by the Alternative release',
+  },
 } as const;
 
 const SORT_DIRECTIONS = ['asc', 'desc'] as const;
 
 export const P2P_STREAM_TYPE = 'p2p' as const;
 export const LIVE_STREAM_TYPE = 'live' as const;
+export const STREMIO_USENET_STREAM_TYPE = 'stremio-usenet' as const;
+export const ARCHIVE_STREAM_TYPE = 'archive' as const;
 export const USENET_STREAM_TYPE = 'usenet' as const;
 export const DEBRID_STREAM_TYPE = 'debrid' as const;
 export const HTTP_STREAM_TYPE = 'http' as const;
@@ -1055,6 +1124,8 @@ export const STATISTIC_STREAM_TYPE = 'statistic' as const;
 const STREAM_TYPES = [
   P2P_STREAM_TYPE,
   LIVE_STREAM_TYPE,
+  STREMIO_USENET_STREAM_TYPE,
+  ARCHIVE_STREAM_TYPE,
   USENET_STREAM_TYPE,
   DEBRID_STREAM_TYPE,
   HTTP_STREAM_TYPE,
@@ -1109,6 +1180,24 @@ export const RESOURCE_LABELS: Record<Resource, string> = {
   [META_RESOURCE]: 'Metadata',
   [ADDON_CATALOG_RESOURCE]: 'Addon Catalog',
 };
+
+// export const PRESET_CATEGORY_STREAMS = 'streams' as const;
+// econst PRESET_CATEGORY_SUBTITLES = 'subtitles' as const;
+// const PRESET_CATEGORY_META_CATALOGS = 'meta_catalogs' as const;
+// const PRESET_CATEGORY_MISC = 'misc' as const;
+export enum PresetCategory {
+  STREAMS = 'streams',
+  SUBTITLES = 'subtitles',
+  META_CATALOGS = 'meta_catalogs',
+  MISC = 'misc',
+}
+
+export const PRESET_CATEGORIES = [
+  PresetCategory.STREAMS,
+  PresetCategory.SUBTITLES,
+  PresetCategory.META_CATALOGS,
+  PresetCategory.MISC,
+] as const;
 
 const LANGUAGES = [
   'English',
@@ -1205,6 +1294,7 @@ export {
   AUDIO_TAGS,
   AUDIO_CHANNELS,
   ENCODES,
+  PASSTHROUGH_STAGES,
   SORT_CRITERIA,
   SORT_DIRECTIONS,
   STREAM_TYPES,
@@ -1228,6 +1318,7 @@ export {
   SEEDR_SERVICE,
   NZBDAV_SERVICE,
   ALTMOUNT_SERVICE,
+  STREMIO_NNTP_SERVICE,
   EASYNEWS_SERVICE,
   SERVICE_DETAILS,
   TOP_LEVEL_OPTION_DETAILS,

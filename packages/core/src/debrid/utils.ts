@@ -43,6 +43,7 @@ interface BaseFile {
   indexer?: string;
   seeders?: number;
   age?: number;
+  duration?: number; // duration in seconds
 }
 
 export interface Torrent extends BaseFile {
@@ -65,6 +66,7 @@ export interface NZB extends BaseFile {
   type: 'usenet';
   hash: string;
   nzb: string;
+  easynewsUrl?: string;
 }
 
 export interface TorrentWithSelectedFile extends Torrent {
@@ -72,7 +74,7 @@ export interface TorrentWithSelectedFile extends Torrent {
   service?: {
     id: BuiltinServiceId;
     cached: boolean;
-    owned: boolean;
+    library: boolean;
   };
 }
 
@@ -81,7 +83,7 @@ export interface NZBWithSelectedFile extends NZB {
   service?: {
     id: BuiltinServiceId;
     cached: boolean;
-    owned: boolean;
+    library: boolean;
   };
 }
 
@@ -347,53 +349,53 @@ export async function selectFileInTorrentOrNZB(
   return bestMatch.file;
 }
 
-export function isVideoFile(file: DebridFile): boolean {
-  const videoExtensions = [
-    '.3g2',
-    '.3gp',
-    '.amv',
-    '.asf',
-    '.avi',
-    '.drc',
-    '.f4a',
-    '.f4b',
-    '.f4p',
-    '.f4v',
-    '.flv',
-    '.gif',
-    '.gifv',
-    '.iso',
-    '.m2v',
-    '.m4p',
-    '.m4v',
-    '.mkv',
-    '.mov',
-    '.mp2',
-    '.mp4',
-    '.mpg',
-    '.mpeg',
-    '.mpv',
-    '.mng',
-    '.mpe',
-    '.mxf',
-    '.nsv',
-    '.ogg',
-    '.ogv',
-    '.qt',
-    '.rm',
-    '.rmvb',
-    '.roq',
-    '.svi',
-    '.webm',
-    '.wmv',
-    '.yuv',
-    '.m3u8',
-    '.m2ts',
-  ];
+export const VIDEO_FILE_EXTENSIONS = [
+  '.3g2',
+  '.3gp',
+  '.amv',
+  '.asf',
+  '.avi',
+  '.drc',
+  '.f4a',
+  '.f4b',
+  '.f4p',
+  '.f4v',
+  '.flv',
+  '.gif',
+  '.gifv',
+  '.iso',
+  '.m2v',
+  '.m4p',
+  '.m4v',
+  '.mkv',
+  '.mov',
+  '.mp2',
+  '.mp4',
+  '.mpg',
+  '.mpeg',
+  '.mpv',
+  '.mng',
+  '.mpe',
+  '.mxf',
+  '.nsv',
+  '.ogg',
+  '.ogv',
+  '.qt',
+  '.rm',
+  '.rmvb',
+  '.roq',
+  '.svi',
+  '.webm',
+  '.wmv',
+  '.yuv',
+  '.m3u8',
+  '.m2ts',
+];
 
+export function isVideoFile(file: DebridFile): boolean {
   return (
     file.mimeType?.includes('video') ||
-    videoExtensions.some((ext) => file.name?.endsWith(ext) ?? false)
+    VIDEO_FILE_EXTENSIONS.some((ext) => file.name?.endsWith(ext) ?? false)
   );
 }
 
@@ -463,6 +465,19 @@ export const metadataStore = () => {
   return Cache.getInstance<string, TitleMetadata>(prefix, 1_000_000_000, store);
 };
 
+export const fileInfoStore = () => {
+  const prefix = 'fis';
+  let store: 'redis' | 'sql' | 'memory' | undefined;
+  if (Env.BUILTIN_DEBRID_FILEINFO_STORE === true) {
+    store = Env.REDIS_URI ? 'redis' : 'sql';
+  } else if (!Env.BUILTIN_DEBRID_FILEINFO_STORE) {
+    return undefined;
+  } else {
+    store = Env.BUILTIN_DEBRID_FILEINFO_STORE;
+  }
+  return Cache.getInstance<string, FileInfo>(prefix, 1_000_000_000, store);
+};
+
 // export function generatePlaybackUrl(
 //   storeAuth: ServiceAuth,
 //   playbackInfo: MinimisedPlaybackInfo,
@@ -484,5 +499,15 @@ export function generatePlaybackUrl(
   title?: string,
   filename?: string
 ): string {
-  return `${Env.BASE_URL}/api/v1/debrid/playback/${encryptedStoreAuth}/${toUrlSafeBase64(JSON.stringify(fileInfo))}/${metadataId}/${encodeURIComponent(filename ?? title ?? 'unknown')}`;
+  const fileInfoCache = fileInfoStore();
+  let fileInfoStr: string = toUrlSafeBase64(JSON.stringify(fileInfo));
+  if (fileInfoCache && fileInfoStr.length > 500) {
+    fileInfoStr = getSimpleTextHash(JSON.stringify(fileInfo));
+    fileInfoCache.set(
+      fileInfoStr,
+      fileInfo,
+      Env.BUILTIN_PLAYBACK_LINK_VALIDITY
+    );
+  }
+  return `${Env.BASE_URL}/api/v1/debrid/playback/${encryptedStoreAuth}/${fileInfoStr}/${metadataId}/${encodeURIComponent(filename ?? title ?? 'unknown')}`;
 }

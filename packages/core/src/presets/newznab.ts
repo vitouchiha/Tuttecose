@@ -10,6 +10,7 @@ export class NewznabPreset extends BuiltinAddonPreset {
       constants.TORBOX_SERVICE,
       constants.NZBDAV_SERVICE,
       constants.ALTMOUNT_SERVICE,
+      constants.STREMIO_NNTP_SERVICE,
     ] as ServiceId[];
     const options: Option[] = [
       {
@@ -24,7 +25,33 @@ export class NewznabPreset extends BuiltinAddonPreset {
         id: 'newznabUrl',
         name: 'Newznab URL',
         description: 'Provide the URL to the Newznab endpoint ',
-        type: 'url',
+        type: 'select-with-custom',
+        options: [
+          { label: 'altHUB', value: 'https://api.althub.co.za' },
+          {
+            label: 'AnimeTosho',
+            value: 'https://feed.animetosho.org/',
+          },
+          { label: 'DOGnzb', value: 'https://api.dognzb.cr/' },
+          { label: 'DrunkenSlug', value: 'https://drunkenslug.com/' },
+          { label: 'Miatrix', value: 'https://www.miatrix.com' },
+          { label: 'NinjaCentral', value: 'https://ninjacentral.co.za/' },
+          { label: 'Nzb.life', value: 'https://api.nzb.life/' },
+          { label: 'NZBFinder', value: 'https://nzbfinder.ws/' },
+          { label: 'NZBgeek', value: 'https://api.nzbgeek.info/' },
+          { label: 'NzbPlanet', value: 'https://api.nzbplanet.net' },
+          { label: 'NZBStars', value: 'https://nzbstars.com/' },
+          { label: 'SceneNZBs', value: 'https://scenenzbs.com' },
+          {
+            label: 'Tabula Rasa',
+            value: 'https://www.tabula-rasa.pw/api/v1/',
+          },
+          {
+            label: 'TorBox Search',
+            value: 'https://search-api.torbox.app/newznab',
+          },
+          { label: 'Usenet Crawler', value: 'https://www.usenet-crawler.com/' },
+        ],
         required: true,
       },
       {
@@ -42,12 +69,12 @@ export class NewznabPreset extends BuiltinAddonPreset {
         type: 'string',
         required: false,
         default: '/api',
+        showInSimpleMode: false,
       },
       {
         id: 'proxyAuth',
         name: 'AIOStreams Proxy Auth',
-        description:
-          'If you want to proxy the NZBs through AIOStreams, provide a username:password pair from the `AIOSTREAMS_AUTH` environment variable.',
+        description: `${Env.NZB_PROXY_PUBLIC_ENABLED ? 'This instance will proxy NZBs by default, however you can optionally p' : 'P'}rovide a username:password pair from the \`AIOSTREAMS_AUTH\` environment variable to use for proxying the NZB.`,
         type: 'password',
         required: false,
       },
@@ -114,15 +141,34 @@ export class NewznabPreset extends BuiltinAddonPreset {
         id: 'searchMode',
         name: 'Search Mode',
         description:
-          'The search mode to use when querying the Torznab endpoint. **Note**: `Both` will result in two addons being created, one for each search mode.',
+          'The search mode to use when querying the Newznab endpoint. **Note**: `Both` will result in two addons being created, one for each search mode.',
         type: 'select',
         required: false,
         default: 'auto',
+        showInSimpleMode: false,
         options: [
           { label: 'Auto', value: 'auto' },
           { label: 'Forced Query', value: 'query' },
           { label: 'Both', value: 'both' },
         ],
+      },
+      {
+        id: 'paginate',
+        name: 'Paginate Results',
+        description:
+          'Newznab endpoints can limit the number of results returned per request. Enabling this option will make the addon paginate through all available results to provide a more comprehensive set of results. Enabling this can increase the time taken to return results, some endpoints may not support pagination, and this will also increase the number of requests.',
+        type: 'boolean',
+        default: false,
+        showInSimpleMode: false,
+      },
+      {
+        id: 'checkOwned',
+        name: 'Check Owned NZBs',
+        description:
+          'When searching for NZBs, check if the NZB is already owned (in your library) and mark it as such if so. Note: only applies to nzbDAV/Altmount.',
+        type: 'boolean',
+        default: true,
+        showInSimpleMode: false,
       },
       {
         id: 'useMultipleInstances',
@@ -229,11 +275,13 @@ export class NewznabPreset extends BuiltinAddonPreset {
   ) {
     const config = {
       ...this.getBaseConfig(userData, services),
+      checkOwned: options.checkOwned ?? true,
       url: options.newznabUrl,
       apiPath: options.apiPath,
       apiKey: options.apiKey,
       proxyAuth: options.proxyAuth,
       forceQuerySearch: options.forceQuerySearch ?? false,
+      paginate: options.paginate ?? false,
     };
 
     const configString = this.base64EncodeJSON(config, 'urlSafe');

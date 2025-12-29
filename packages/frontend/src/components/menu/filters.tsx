@@ -2358,17 +2358,17 @@ function Content() {
               <HeadingWithPageControls heading="Size" />
               <div className="mb-4">
                 <p className="text-sm text-[--muted]">
-                  Set minimum and maximum size limits for movies and series. You
+                  Set minimum and maximum size limits for movies, series, and anime series. You
                   can set a global limit, and also choose to set specific limits
                   for each resolution. For a given stream, only one set of size
                   filters would be used. A resolution specific limit takes
-                  priority.
+                  priority. Anime series limits take precedence over regular series limits.
                 </p>
               </div>
               <div className="space-y-4">
                 <SettingsCard
                   title="Global"
-                  description="Apply size filters for movies and series"
+                  description="Apply size filters for movies, series, and anime series"
                 >
                   <SizeRangeSlider
                     label="Global Size Limits"
@@ -2378,6 +2378,9 @@ function Content() {
                     }
                     seriesValue={
                       userData.size?.global?.series || [MIN_SIZE, MAX_SIZE]
+                    }
+                    animeValue={
+                      userData.size?.global?.anime || [MIN_SIZE, MAX_SIZE]
                     }
                     onMoviesChange={(value) => {
                       setUserData((prev: any) => ({
@@ -2394,6 +2397,15 @@ function Content() {
                         size: {
                           ...prev.size,
                           global: { ...prev.size?.global, series: value },
+                        },
+                      }));
+                    }}
+                    onAnimeChange={(value) => {
+                      setUserData((prev: any) => ({
+                        ...prev,
+                        size: {
+                          ...prev.size,
+                          global: { ...prev.size?.global, anime: value },
                         },
                       }));
                     }}
@@ -2423,6 +2435,12 @@ function Content() {
                               MAX_SIZE,
                             ]
                           }
+                          animeValue={
+                            userData.size?.resolution?.[resolution]?.anime || [
+                              MIN_SIZE,
+                              MAX_SIZE,
+                            ]
+                          }
                           onMoviesChange={(value) => {
                             setUserData((prev: any) => ({
                               ...prev,
@@ -2448,6 +2466,21 @@ function Content() {
                                   [resolution]: {
                                     ...prev.size?.resolution?.[resolution],
                                     series: value,
+                                  },
+                                },
+                              },
+                            }));
+                          }}
+                          onAnimeChange={(value) => {
+                            setUserData((prev: any) => ({
+                              ...prev,
+                              size: {
+                                ...prev.size,
+                                resolution: {
+                                  ...prev.size?.resolution,
+                                  [resolution]: {
+                                    ...prev.size?.resolution?.[resolution],
+                                    anime: value,
                                   },
                                 },
                               },
@@ -2616,6 +2649,7 @@ function Content() {
                     }}
                   />
                 </SettingsCard>
+
                 {mode === 'pro' && (
                   <>
                     <SettingsCard
@@ -2760,6 +2794,30 @@ function Content() {
                         }))}
                       />
 
+                      <Combobox
+                        help="Addons selected here will always have their results kept during deduplication."
+                        label="Addon Exclusions"
+                        value={userData.deduplicator?.excludeAddons ?? []}
+                        onValueChange={(value) => {
+                          setUserData((prev) => ({
+                            ...prev,
+                            deduplicator: {
+                              ...prev.deduplicator,
+                              excludeAddons: value,
+                            },
+                          }));
+                        }}
+                        options={userData.presets.map((preset) => ({
+                          label: preset.options.name || preset.type,
+                          value: preset.instanceId,
+                          textValue: preset.options.name,
+                        }))}
+                        emptyMessage="You haven't installed any addons..."
+                        placeholder="Select addons..."
+                        multiple
+                        disabled={userData.deduplicator?.enabled === false}
+                      />
+
                       <Select
                         label="Multi-Group Behaviour"
                         help={`Configure how duplicates across multiple types are handled. e.g. if a given duplicate set has both cached and uncached streams, what should be done.
@@ -2822,6 +2880,22 @@ function Content() {
                       setUserData((prev) => ({
                         ...prev,
                         digitalReleaseFilter: value,
+                      }));
+                    }}
+                  />
+                </SettingsCard>
+                <SettingsCard
+                  title="SeaDex Integration"
+                  description="Fetch SeaDex data (releases.moe) for anime to identify best quality releases."
+                >
+                  <Switch
+                    label="Enable"
+                    side="right"
+                    value={userData.enableSeadex}
+                    onValueChange={(value) => {
+                      setUserData((prev) => ({
+                        ...prev,
+                        enableSeadex: value,
                       }));
                     }}
                   />
@@ -3502,8 +3576,10 @@ interface SizeRangeSliderProps {
   help?: string;
   moviesValue: [number, number];
   seriesValue: [number, number];
+  animeValue: [number, number];
   onMoviesChange: (value: [number, number]) => void;
   onSeriesChange: (value: [number, number]) => void;
+  onAnimeChange: (value: [number, number]) => void;
   min?: number;
   max?: number;
 }
@@ -3521,8 +3597,10 @@ function SizeRangeSlider({
   help,
   moviesValue,
   seriesValue,
+  animeValue,
   onMoviesChange,
   onSeriesChange,
+  onAnimeChange,
   min = MIN_SIZE,
   max = MAX_SIZE,
 }: SizeRangeSliderProps) {
@@ -3630,6 +3708,59 @@ function SizeRangeSlider({
               onValueChange={(newValue) =>
                 newValue !== undefined &&
                 onSeriesChange([seriesValue[0], newValue])
+              }
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Anime Series Slider */}
+      <div className="space-y-2">
+        <h5 className="text-sm font-medium text-[--muted]">Anime Series</h5>
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 min-w-0">
+            <Slider
+              min={min}
+              max={max}
+              step={max / 1000}
+              defaultValue={[min, max]}
+              value={animeValue}
+              onValueChange={(newValue) =>
+                newValue !== undefined &&
+                newValue?.[0] !== undefined &&
+                newValue?.[1] !== undefined &&
+                onAnimeChange([newValue[0], newValue[1]])
+              }
+              minStepsBetweenThumbs={1}
+              label="Anime Series Size Range"
+              help={help}
+            />
+            <div className="flex justify-between mt-1 text-xs text-[--muted]">
+              <span>{formatBytes(animeValue[0])}</span>
+              <span>{formatBytes(animeValue[1])}</span>
+            </div>
+          </div>
+          <div className="flex gap-2 md:w-[240px] shrink-0">
+            <NumberInput
+              label="Min"
+              step={max / 1000}
+              value={animeValue[0]}
+              min={min}
+              max={animeValue[1]}
+              onValueChange={(newValue) =>
+                newValue !== undefined &&
+                onAnimeChange([newValue, animeValue[1]])
+              }
+            />
+            <NumberInput
+              label="Max"
+              step={max / 1000}
+              value={animeValue[1]}
+              min={animeValue[0]}
+              max={max}
+              onValueChange={(newValue) =>
+                newValue !== undefined &&
+                onAnimeChange([animeValue[0], newValue])
               }
             />
           </div>
